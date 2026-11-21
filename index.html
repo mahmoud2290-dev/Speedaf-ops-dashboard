@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Delivery &amp; Collection Dashboard</title>
+<script>
+/* =====================  SETTINGS - edit here  =====================
+   API_URL           : your Google Apps Script web-app link (the dashboard adds ?pass=PASSWORD when you sign in)
+   AUTO_REFRESH_MIN  : re-read the Google Sheet every N minutes while the page is open (0 = off; use the Refresh button only)
+   TZ                : time zone used if the sheet returns date-times as UTC ISO text (e.g. 2026-11-20T22:30:00.000Z)
+   The page itself contains no operational data; it is fetched only after a correct password. */
+var CONFIG={API_URL:'https://script.google.com/macros/s/AKfycbw1dYkKByhaI64oXiheYE8zyZIqzL9Oyb2GyeiKNiMKNCLjKhpcEYS2Hgayl4SoWPXU/exec',AUTO_REFRESH_MIN:10,TZ:'Africa/Cairo'};
+/* ================================================================== */
+</script>
+<script>(function(){var m=null;try{m=localStorage.getItem('dash-theme')}catch(e){}if(m!=='dark'&&m!=='light')m=(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';document.documentElement.setAttribute('data-theme',m);try{if(sessionStorage.getItem('dash-auth')!=='1')document.documentElement.classList.add('locked')}catch(e){document.documentElement.classList.add('locked')}})()</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&display=swap">
+<style>
+:root{--bg:#EEF3F5;--card:#fff;--ink:#10303A;--mut:#5B7480;--line:#D5E0E5;--acc:#0E7C86;--bar:#BFE3E6;--warn:#C2410C;--bar2:#F6D9B8;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0D1C22;--card:#142B33;--ink:#E4EEF1;--mut:#92AAB4;--line:#244551;--acc:#4CC3CE;--bar:#1C4A55;--warn:#FB923C;--bar2:#5A3A1B}}
+:root[data-theme="dark"]{--bg:#0D1C22;--card:#142B33;--ink:#E4EEF1;--mut:#92AAB4;--line:#244551;--acc:#4CC3CE;--bar:#1C4A55;--warn:#FB923C;--bar2:#5A3A1B}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',Arial,sans-serif;line-height:1.5}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--card);z-index:10}
+header{background:var(--card);border-bottom:1px solid var(--line);padding:14px 20px;position:sticky;top:env(safe-area-inset-top,0px);z-index:9}
+h1{font-size:20px;font-weight:800;margin:0 0 10px}
+.filters{display:flex;flex-wrap:wrap;gap:10px}
+.filters label{display:flex;flex-direction:column;font-size:12px;color:var(--mut);gap:2px}
+select{font:inherit;font-size:14px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:5px 8px;min-width:130px;max-width:210px}
+button{font:inherit;cursor:pointer}
+main{padding:18px 20px;max-width:1300px;margin:auto}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.kpi b{display:block;font-size:24px;font-weight:800}
+.kpi span{font-size:13px;color:var(--mut)}
+.kpi.main{border-color:var(--acc);border-width:2px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.tabs button,.views button{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:6px 16px;border-radius:20px;font-size:14px}
+.tabs button.on,.views button.on{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+.views{margin-inline-start:auto;display:flex;gap:6px}
+input[type=search]{font:inherit;font-size:14px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);min-width:200px}
+.wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:760px}
+th{position:sticky;top:0;background:var(--card);text-align:start;padding:9px 12px;border-bottom:2px solid var(--line);cursor:pointer;white-space:nowrap;font-weight:600}
+th.on{color:var(--acc)}
+td{padding:7px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+td.n{font-variant-numeric:tabular-nums}
+td.p{background:linear-gradient(to right,var(--bar) calc(var(--p)*1%),transparent 0);font-variant-numeric:tabular-nums}
+td.p2{background:linear-gradient(to right,var(--bar2) calc(var(--p)*1%),transparent 0);font-variant-numeric:tabular-nums}
+td.name{font-weight:600;text-align:left;max-width:280px;overflow:hidden;text-overflow:ellipsis}
+.kpi small{display:block;font-size:12px;color:var(--mut)}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.top h1{margin:0}
+.up{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.upbtn{background:var(--acc);color:var(--card);border:1px solid var(--acc);border-radius:6px;padding:7px 16px;font-weight:600;font-size:14px}
+.upbtn.alt{background:transparent;color:var(--acc)}
+.ghost{background:none;border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:6px 12px;font-size:13px}
+.menuwrap{position:relative}
+.menu{position:absolute;right:0;top:calc(100% + 4px);background:var(--card);border:1px solid var(--line);border-radius:8px;min-width:170px;z-index:20;overflow:hidden}
+.menu button{display:block;width:100%;text-align:left;background:none;border:0;color:var(--ink);padding:9px 14px;font-size:14px}
+.menu button:hover{background:var(--bg)}
+.status{font-size:12.5px;color:var(--mut);margin:0 0 10px}
+body,header,.kpi,.wrap,th,select,input[type=search],.tabs button,.views button,.menu,.ghost,.upbtn{transition:background-color .25s ease,color .25s ease,border-color .25s ease}
+.theme{width:36px;height:36px;padding:0;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:50%}
+.theme:hover{border-color:var(--acc);color:var(--acc)}
+.theme svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.theme .moon{display:none}
+:root[data-theme="dark"] .theme .sun{display:none}
+:root[data-theme="dark"] .theme .moon{display:block}
+:root[data-theme="dark"] select,:root[data-theme="dark"] input[type=search]{color-scheme:dark}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.pos{color:var(--acc)}
+.neg{color:var(--warn)}
+td.g,td.a{font-variant-numeric:tabular-nums;font-weight:600}
+td.pt{font-variant-numeric:tabular-nums;color:var(--mut)}
+:root{--c2:#8CCBD0;--c3:#B7C6CD}
+:root[data-theme="dark"]{--c2:#2B7F8A;--c3:#4B6773}
+.charts{margin-top:18px}
+.cgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.cc{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;min-width:0}
+.cc.w2{grid-column:span 2}
+.cc h2{font-size:15px;font-weight:700;margin:0}
+.cc .cap{font-size:12.5px;color:var(--mut);margin:2px 0 8px}
+.chead{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap}
+.seg{display:flex;gap:4px}
+.seg button{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:3px 11px;border-radius:14px;font-size:12.5px}
+.seg button.on{background:var(--acc);border-color:var(--acc);color:var(--card);font-weight:600}
+.key{list-style:none;margin:0;padding:0;display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--mut)}
+.key li{display:flex;align-items:center;gap:6px}
+.sw{width:10px;height:10px;border-radius:2px;display:inline-block}
+.cc svg{display:block;max-width:100%;overflow:visible}
+.cc svg text{fill:var(--mut);font-size:11px;font-family:inherit}
+.cc svg text.lbl{fill:var(--ink);font-size:12.5px}
+.cc svg text.val{fill:var(--ink);font-weight:600;font-size:12.5px}
+.cc svg text.rt{fill:var(--warn)}
+.cc svg text.sm{font-size:10.5px}
+.cc svg text.big{fill:var(--ink);font-size:20px;font-weight:700}
+.gl{stroke:var(--line);stroke-width:1}
+.b1{fill:var(--c2)}.b2{fill:var(--acc)}
+.ln{fill:none;stroke:var(--warn);stroke-width:2}
+.dt{fill:var(--card);stroke:var(--warn);stroke-width:2}
+.hit{fill:transparent}.hit:hover{fill:var(--ink);fill-opacity:.06}
+.hb{fill:var(--acc)}
+.tg{stroke:var(--warn);stroke-width:2.5}
+.rbg{fill:transparent}
+.rowhit{cursor:pointer;outline:none}
+.rowhit:hover .rbg,.rowhit:focus .rbg{fill:var(--bg)}
+.rowhit:focus .rbg{stroke:var(--acc)}
+.seg2{cursor:default}.seg2:hover{opacity:.82}
+.dn{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.lg{list-style:none;margin:0;padding:0;flex:1;min-width:190px}
+.lg li{display:grid;grid-template-columns:14px 1fr auto 54px;gap:8px;align-items:center;font-size:13px;padding:3px 0}
+.lg em{font-style:normal;color:var(--mut);text-align:right}
+#tip{position:fixed;z-index:50;background:var(--ink);color:var(--card);padding:7px 10px;border-radius:6px;font-size:12.5px;pointer-events:none;max-width:270px;line-height:1.45}
+#tip b{display:block}
+@media (max-width:820px){.cgrid{grid-template-columns:1fr}.cc.w2{grid-column:auto}}
+.kpi{position:relative}
+.kc{position:absolute;top:11px;right:12px;overflow:visible;outline:none}
+.kc:focus-visible{outline:2px solid var(--acc);outline-offset:3px;border-radius:50%}
+.kt{fill:none;stroke:var(--line)}
+.kf{fill:none;stroke-linecap:round}
+.kf.acc{stroke:var(--acc)}.kf.warn{stroke:var(--warn)}
+.ktg{stroke:var(--ink);stroke-width:1.6;stroke-linecap:round}
+.kl{fill:none;stroke:var(--acc);stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round}
+.ka{fill:var(--acc);fill-opacity:.13;stroke:none}
+.kd{fill:var(--acc)}
+.km{fill:var(--card);stroke:var(--acc);stroke-width:1.6}
+.kc.spark{cursor:crosshair;top:auto;bottom:11px;width:40px;height:24px}
+.rf{stroke:var(--mut);stroke-width:1.5;stroke-dasharray:4 3}
+.ctl{display:flex;gap:8px 12px;flex-wrap:wrap;align-items:center}
+.ctl label{display:flex;gap:5px;align-items:center;font-size:12.5px;color:var(--mut)}
+.ctl select{min-width:0;padding:3px 6px;font-size:12.5px}
+.up{margin-left:auto}
+#pdfMenu{min-width:270px}
+.menu button{white-space:nowrap}
+#printMeta{display:none}
+@media print{
+@page{size:A4 landscape;margin:10mm}
+html,body{background:#fff!important}
+*{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body::before{display:none}
+header{position:static;padding:0 0 8px}
+.up,.filters,#status,#tip,.more,.bar{display:none!important}
+#printMeta{display:block;font-size:12px;color:var(--mut);margin:4px 0 0;line-height:1.5}
+main{display:flex;flex-direction:column;padding:10px 0;max-width:none}
+.kpis{order:-3}.charts{order:-2}
+.wrap{overflow:visible}
+table{min-width:0;width:100%;font-size:11px}
+th,td{padding:5px 6px}
+th{position:static;white-space:normal}
+td.name{max-width:150px}
+.seg,.ctl{display:none!important}
+thead{display:table-header-group}
+tr,.kpi,.cc{break-inside:avoid}
+html[data-print="table"] .kpis,html[data-print="table"] .charts{display:none}
+}
+html.printing main{width:1040px;max-width:1040px;margin:0}
+.note{font-size:12.5px;color:var(--mut);margin:10px 2px}
+.more{margin:12px auto;display:block;border:1px solid var(--acc);background:none;color:var(--acc);padding:6px 18px;border-radius:6px}
+#c-cour{max-height:560px;overflow-y:auto;overflow-x:hidden}@media print{#c-cour{max-height:none;overflow:visible}}
+
+html.locked body>header,html.locked body>main,html.locked body>#printMeta{display:none!important}
+#login{display:none}html.locked #login{display:flex}
+#login{position:fixed;inset:0;z-index:50;align-items:center;justify-content:center;background:var(--bg);padding:20px}
+#login .lbox{width:100%;max-width:380px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:28px 26px;box-shadow:0 8px 30px rgba(0,0,0,.08);position:relative}
+#login h2{margin:0 0 4px;padding-right:38px;font-size:20px;color:var(--ink)}#login p{margin:0 0 18px;font-size:13px;color:var(--mut)}
+#login label{display:block;font-size:12.5px;color:var(--mut);margin-bottom:12px}
+#login input{display:block;width:100%;box-sizing:border-box;margin-top:4px;padding:9px 11px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit;font-size:14px}
+#login input:focus{outline:none;border-color:var(--acc)}
+#login .go{width:100%;margin-top:6px;padding:10px;border:0;border-radius:6px;background:var(--acc);color:#fff;font:inherit;font-weight:600;font-size:14px;cursor:pointer}
+#login .go:hover{opacity:.9}#login .err{min-height:18px;margin:8px 0 0;font-size:12.5px;color:var(--warn)}
+#login .theme{position:absolute;top:14px;right:14px;width:32px;height:32px}
+#asof{font-size:12.5px;margin:0 0 10px;color:var(--mut)}#asof b{color:var(--ink)}#asof.demo{color:var(--warn)}#asof.demo b{color:var(--warn)}
+@media print{#login,#asof,#logout{display:none!important}}
+</style>
+</head>
+<body>
+<div id="login"><form class="lbox" id="loginForm" autocomplete="off">
+<button id="theme2" class="theme" type="button" aria-label="Switch between light and dark mode" title="Light / Dark mode"><svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+<h2>Delivery &amp; Collection Dashboard</h2><p>Team access only. Enter your name and the access password.</p>
+<label>Name<input id="lu" type="text" autocomplete="username" autofocus required></label>
+<label>Password<input id="lp" type="password" autocomplete="current-password" required></label>
+<button class="go" type="submit">Sign in</button><div class="err" id="lerr" role="alert"></div></form></div>
+<header>
+<div class="top"><h1>Delivery &amp; Collection Dashboard <span id="range" style="font-weight:400;font-size:13px;color:var(--mut)"></span></h1>
+<div class="up"><button id="reset" class="ghost" hidden>Back to live data</button>
+<button id="theme" class="theme" type="button" aria-label="Switch between light and dark mode" title="Light / Dark mode"><svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+<button id="logout" class="ghost" type="button" title="Sign out and clear the loaded data from this tab">Logout</button>
+<button id="refreshBtn" class="upbtn" type="button" title="Re-read the latest data from the Google Sheet">Refresh data now</button>
+<button id="upBtn" class="upbtn alt" type="button" title="Emergency option: load an Excel / CSV file from your computer instead of the Google Sheet">Upload Excel / CSV (backup)</button>
+<div class="menuwrap"><button id="expBtn" class="upbtn alt">Export filtered data (Excel/CSV)</button><div class="menu" id="expMenu" hidden><button data-k="xlsx">Export as Excel (.xlsx)</button><button data-k="csv">Export as CSV</button></div></div>
+<div class="menuwrap"><button id="pdfBtn" class="upbtn alt" type="button" title="Opens the print dialog: choose Save as PDF as the destination">Download / Print as PDF</button><div class="menu" id="pdfMenu" hidden><button data-p="dash">Whole dashboard (KPIs, charts and table)</button><button data-p="table">Data table only (all rows)</button></div></div>
+<input type="file" id="file" accept=".xlsx,.xls,.csv" multiple hidden></div></div>
+<div id="printMeta"></div>
+<div id="status" class="status">Connecting to Google Sheet …</div>
+<div id="asof"></div>
+<div class="filters">
+<label>Area<select id="fArea"></select></label>
+<label>Hub<select id="fHub"></select></label>
+<label>Ship Mode<select id="fShip"><option value="">All</option><option value="0">Local</option><option value="1">Fulfillment Delivery</option></select></label>
+<label>Customer<select id="fCust"></select></label>
+<label>From<select id="fFrom"></select></label>
+<label>To<select id="fTo"></select></label>
+</div>
+</header>
+<main>
+<div class="kpis" id="kpis"></div>
+<div class="bar">
+<div class="tabs" id="tabs"></div>
+<input type="search" id="q" placeholder="Search by name">
+<div class="views" id="views"></div>
+</div>
+<div class="wrap"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>
+<button class="more" id="more" hidden></button>
+<p class="note" id="note"></p>
+<section class="charts" id="charts" aria-label="Charts"><div class="cgrid">
+<div class="cc w2"><div class="chead"><div><h2>Daily out for delivery vs Signed</h2><p class="cap">Bars show shipments per day, the line shows the delivery rate (right axis). Hover a day for details.</p></div><ul class="key"><li><i class="sw" style="background:var(--c2)"></i>Out for delivery</li><li><i class="sw" style="background:var(--acc)"></i>Signed</li><li><i class="sw" style="background:var(--warn)"></i>Delivery rate</li></ul></div><div id="c-trend"></div></div>
+<div class="cc"><div class="chead"><div><h2 id="rk-title">Delivery rate</h2><p class="cap" id="rk-cap"></p></div><div class="seg" id="rk"><button data-r="low">Lowest</button><button data-r="high">Highest</button><button data-r="vol">Largest</button></div></div><div id="c-rank"></div></div>
+<div class="cc"><div><h2>Signed by speed (D1 / D2)</h2><p class="cap">Percentages are of classified shipments (those with a Departure Time).</p></div><div id="c-d12"></div></div>
+<div class="cc w2"><div><h2>Delivery rate by ship mode vs target</h2><p class="cap">The orange tick marks the target. Click a bar to filter by that ship mode.</p></div><div id="c-ship"></div></div>
+<div class="cc w2"><div class="chead"><div><h2>Courier performance percentages</h2><p class="cap" id="cr-cap"></p></div><div class="ctl"><div class="seg" id="cr-m"><button data-m="rate">Delivery rate</button><button data-m="d1">D1 rate</button><button data-m="d12">D1 + D2 rate</button></div><div class="seg" id="cr-o"><button data-o="vol">Largest</button><button data-o="low">Lowest</button><button data-o="high">Highest</button></div></div></div><div id="c-cour"></div></div>
+</div></section>
+
+</main>
+<script>
+let D={"days":["2026-01-01","2026-01-02","2026-01-03","2026-01-04","2026-01-05","2026-01-06","2026-01-07","2026-01-08","2026-01-09","2026-01-10","2026-01-11","2026-01-12","2026-01-13","2026-01-14"],"hubs":["Demo Hub 1","Demo Hub 2","Demo Hub 3","Demo Hub 4","Demo Hub 5","Demo Hub 6"],"hubArea":["Area A","Area A","Area A","Area B","Area B","Area B"],"customers":["Demo Merchant 1","Demo Merchant 2","Demo Merchant 3","Demo Merchant 4","Demo Merchant 5","Demo Merchant 6","Demo Merchant 7","Demo Merchant 8"],"couriers":["Demo Courier 01","Demo Courier 02","Demo Courier 03","Demo Courier 04","Demo Courier 05","Demo Courier 06","Demo Courier 07","Demo Courier 08","Demo Courier 09","Demo Courier 10","Demo Courier 11","Demo Courier 12","Demo Courier 13","Demo Courier 14","Demo Courier 15","Demo Courier 16","Demo Courier 17","Demo Courier 18","Demo Courier 19","Demo Courier 20","Demo Courier 21","Demo Courier 22","Demo Courier 23","Demo Courier 24"],"A":[[0,0,0,1,6,3,1,0,2,0],[0,0,0,3,7,5,2,1,2,0],[0,0,0,5,8,6,3,1,2,0],[0,0,1,0,7,4,2,1,1,0],[0,0,1,4,30,11,6,2,3,0],[0,0,1,6,10,4,2,1,1,0],[0,1,0,0,9,6,4,1,1,0],[0,1,0,1,35,25,16,4,5,0],[0,1,0,4,27,16,11,3,2,0],[0,1,1,2,30,10,7,1,2,0],[0,1,1,4,25,13,9,2,2,0],[0,1,1,7,11,5,2,1,2,0],[0,2,0,0,40,33,24,4,5,0],[0,2,0,6,26,13,8,2,3,0],[0,2,0,7,34,25,14,6,5,0],[0,2,1,0,31,17,10,3,4,0],[0,2,1,1,22,8,4,2,2,0],[0,2,1,3,9,3,1,0,2,0],[0,3,0,3,30,20,14,2,4,0],[0,3,0,5,13,6,3,1,2,0],[0,3,0,7,35,27,16,5,6,0],[0,3,1,2,33,18,13,3,2,0],[0,3,1,4,16,5,3,0,2,0],[0,3,1,5,29,13,7,3,3,0],[0,4,0,0,26,18,12,2,4,0],[0,4,0,4,8,6,4,0,2,0],[0,4,0,5,4,2,1,0,1,0],[0,4,1,3,34,18,10,3,5,0],[0,4,1,6,13,6,4,1,1,0],[0,4,1,7,23,8,4,2,2,0],[0,5,0,0,19,14,10,1,3,0],[0,5,0,4,37,23,13,6,4,0],[0,5,0,5,18,12,8,2,2,0],[0,5,1,2,32,17,12,2,3,0],[0,5,1,5,9,3,1,0,2,0],[0,5,1,7,5,2,1,0,1,0],[1,0,0,3,34,27,17,5,5,0],[1,0,0,4,31,24,15,5,4,0],[1,0,0,7,28,21,15,3,3,0],[1,0,1,3,13,6,4,1,1,0],[1,0,1,6,14,5,2,1,2,0],[1,0,1,7,13,6,3,1,2,0],[1,1,0,1,31,26,15,7,4,0],[1,1,0,4,20,11,7,2,2,0],[1,1,0,5,20,13,9,1,3,0],[1,1,1,3,15,7,5,0,2,0],[1,1,1,5,36,13,7,3,3,0],[1,1,1,7,34,17,9,3,5,0],[1,2,0,0,36,25,14,5,6,0],[1,2,0,6,39,19,14,2,3,0],[1,2,0,7,19,10,5,2,3,0],[1,2,1,1,8,3,1,0,2,0],[1,2,1,4,11,4,2,1,1,0],[1,2,1,7,39,22,13,4,5,0],[1,3,0,2,13,7,4,1,2,0],[1,3,0,5,29,23,13,6,4,0],[1,3,0,6,14,10,7,1,2,0],[1,3,1,1,5,2,1,0,1,0],[1,3,1,2,11,6,4,1,1,0],[1,3,1,6,9,4,2,1,1,0],[1,4,0,0,20,12,8,2,2,0],[1,4,0,1,6,4,2,1,1,0],[1,4,0,2,24,12,6,3,3,0],[1,4,1,0,20,11,7,2,2,0],[1,4,1,2,21,10,5,3,2,0],[1,4,1,6,9,4,2,1,1,0],[1,5,0,1,15,8,5,1,2,0],[1,5,0,2,20,10,5,2,3,0],[1,5,0,7,22,14,10,1,3,0],[1,5,1,3,32,12,9,1,2,0],[1,5,1,4,38,21,13,4,4,0],[1,5,1,7,18,7,5,1,1,0],[2,0,0,2,12,6,4,1,1,0],[2,0,0,3,14,7,5,1,1,0],[2,0,0,7,19,14,7,3,4,0],[2,0,1,0,25,11,7,2,2,0],[2,0,1,3,6,3,1,1,1,0],[2,0,1,4,27,15,11,2,2,0],[2,1,0,1,29,14,8,2,4,0],[2,1,0,3,9,5,2,1,2,0],[2,1,0,4,28,21,15,3,3,0],[2,1,1,4,6,3,2,0,1,0],[2,1,1,5,36,13,8,2,3,0],[2,1,1,7,18,6,3,1,2,0],[2,2,0,1,5,3,2,0,1,0],[2,2,0,3,33,25,18,3,4,0],[2,2,0,6,37,19,13,2,4,0],[2,2,1,1,17,6,4,1,1,0],[2,2,1,2,8,3,1,1,1,0],[2,2,1,6,8,3,2,0,1,0],[2,3,0,4,4,2,1,0,1,0],[2,3,0,6,33,21,12,6,3,0],[2,3,0,7,17,12,7,2,3,0],[2,3,1,0,9,3,2,0,1,0],[2,3,1,2,21,9,7,1,1,0],[2,3,1,3,5,2,1,0,1,0],[2,4,0,2,11,8,4,2,2,0],[2,4,0,4,29,14,7,3,4,0],[2,4,0,5,29,17,9,4,4,0],[2,4,1,0,4,2,1,0,1,0],[2,4,1,2,28,16,11,2,3,0],[2,4,1,5,24,12,9,1,2,0],[2,5,0,2,31,25,18,4,3,0],[2,5,0,6,21,11,8,1,2,0],[2,5,0,7,19,15,9,2,4,0],[2,5,1,0,30,13,8,3,2,0],[2,5,1,3,30,13,9,2,2,0],[2,5,1,5,35,12,9,1,2,0],[3,0,0,3,8,4,3,0,1,0],[3,0,0,4,23,15,10,2,3,0],[3,0,0,5,32,26,20,3,3,0],[3,0,1,1,28,12,8,2,2,0],[3,0,1,2,9,3,2,0,1,0],[3,0,1,4,20,11,6,2,3,0],[3,1,0,0,31,25,19,3,3,0],[3,1,0,5,21,14,8,3,3,0],[3,1,0,6,9,5,3,1,1,0],[3,1,1,0,34,20,13,2,5,0],[3,1,1,1,32,13,7,2,4,0],[3,1,1,7,33,12,8,1,3,0],[3,2,0,1,11,5,3,1,1,0],[3,2,0,2,23,19,13,3,3,0],[3,2,0,4,28,16,11,2,3,0],[3,2,1,2,9,3,2,0,1,0],[3,2,1,3,23,8,4,2,2,0],[3,2,1,4,19,8,4,1,3,0],[3,3,0,0,18,11,6,3,2,0],[3,3,0,3,30,18,11,2,5,0],[3,3,0,7,36,18,12,2,4,0],[3,3,1,1,18,8,6,0,2,0],[3,3,1,3,7,3,1,1,1,0],[3,3,1,4,29,10,5,2,3,0],[3,4,0,0,32,17,9,3,5,0],[3,4,0,5,14,8,4,2,2,0],[3,4,0,7,6,3,2,0,1,0],[3,4,1,0,16,6,4,1,1,0],[3,4,1,3,9,3,2,0,1,0],[3,4,1,5,28,12,9,1,2,0],[3,5,0,1,20,11,6,2,3,0],[3,5,0,5,21,12,9,1,2,0],[3,5,0,6,6,3,1,1,1,0],[3,5,1,2,28,15,11,2,2,0],[3,5,1,5,8,2,1,0,1,0],[3,5,1,6,35,13,9,2,2,0],[4,0,0,1,34,23,14,6,3,0],[4,0,0,2,24,15,11,2,2,0],[4,0,0,4,29,22,13,3,6,0],[4,0,1,0,15,6,3,1,2,0],[4,0,1,1,17,6,4,1,1,0],[4,0,1,2,38,21,15,2,4,0],[4,1,0,2,19,11,6,3,2,0],[4,1,0,4,27,15,9,3,3,0],[4,1,0,6,24,12,7,2,3,0],[4,1,1,0,16,9,5,2,2,0],[4,1,1,3,6,2,1,0,1,0],[4,1,1,5,27,9,5,1,3,0],[4,2,0,2,17,13,9,2,2,0],[4,2,0,4,27,16,8,5,3,0],[4,2,0,7,10,7,5,1,1,0],[4,2,1,1,30,11,7,2,2,0],[4,2,1,4,14,6,3,2,1,0],[4,2,1,5,8,3,2,0,1,0],[4,3,0,0,14,9,6,1,2,0],[4,3,0,3,16,10,6,2,2,0],[4,3,0,4,40,32,20,4,8,0],[4,3,1,1,13,5,2,1,2,0],[4,3,1,3,9,4,3,0,1,0],[4,3,1,5,4,1,0,0,1,0],[4,4,0,0,24,12,9,1,2,0],[4,4,0,1,16,9,6,1,2,0],[4,4,0,3,18,12,8,1,3,0],[4,4,1,1,13,5,3,1,1,0],[4,4,1,4,39,21,15,3,3,0],[4,4,1,7,6,2,1,0,1,0],[4,5,0,0,19,12,8,2,2,0],[4,5,0,3,15,7,4,1,2,0],[4,5,0,5,39,31,23,4,4,0],[4,5,1,3,15,8,5,1,2,0],[4,5,1,4,6,3,1,1,1,0],[4,5,1,7,31,13,9,2,2,0],[5,0,0,0,16,8,6,0,2,0],[5,0,0,1,12,6,3,1,2,0],[5,0,0,4,18,9,5,2,2,0],[5,0,1,2,33,12,8,2,2,0],[5,0,1,4,15,6,4,0,2,0],[5,0,1,7,20,10,6,2,2,0],[5,1,0,1,38,27,17,6,4,0],[5,1,0,3,39,26,18,5,3,0],[5,1,0,5,11,8,4,2,2,0],[5,1,1,2,4,2,1,0,1,0],[5,1,1,3,22,12,7,2,3,0],[5,1,1,4,27,11,6,2,3,0],[5,2,0,3,7,3,1,0,2,0],[5,2,0,4,38,21,14,4,3,0],[5,2,0,6,7,3,1,1,1,0],[5,2,1,2,32,11,7,2,2,0],[5,2,1,3,14,5,3,0,2,0],[5,2,1,4,29,16,12,1,3,0],[5,3,0,4,7,4,2,0,2,0],[5,3,0,5,37,27,16,7,4,0],[5,3,0,7,10,5,3,1,1,0],[5,3,1,1,9,4,2,0,2,0],[5,3,1,2,15,7,3,2,2,0],[5,3,1,3,38,13,9,2,2,0],[5,4,0,1,11,6,4,1,1,0],[5,4,0,2,7,4,2,1,1,0],[5,4,0,7,22,15,11,1,3,0],[5,4,1,0,16,9,6,1,2,0],[5,4,1,1,25,12,7,3,2,0],[5,4,1,2,34,19,13,3,3,0],[5,5,0,1,26,21,15,2,4,0],[5,5,0,5,13,6,3,1,2,0],[5,5,0,6,17,10,6,2,2,0],[5,5,1,2,8,4,2,1,1,0],[5,5,1,5,16,8,6,1,1,0],[5,5,1,6,28,10,6,1,3,0],[6,0,0,0,22,14,8,3,3,0],[6,0,0,5,22,11,8,2,1,0],[6,0,0,6,22,13,8,2,3,0],[6,0,1,2,40,22,13,3,6,0],[6,0,1,6,7,3,1,1,1,0],[6,0,1,7,30,10,6,1,3,0],[6,1,0,0,22,17,13,1,3,0],[6,1,0,2,35,24,18,3,3,0],[6,1,0,3,26,17,11,3,3,0],[6,1,1,0,26,9,7,1,1,0],[6,1,1,2,35,19,13,3,3,0],[6,1,1,5,31,17,9,3,5,0],[6,2,0,3,38,26,18,4,4,0],[6,2,0,4,28,23,16,4,3,0],[6,2,0,7,26,18,12,3,3,0],[6,2,1,4,21,8,5,1,2,0],[6,2,1,5,12,5,3,1,1,0],[6,2,1,7,14,6,4,0,2,0],[6,3,0,1,16,10,7,1,2,0],[6,3,0,2,24,17,10,3,4,0],[6,3,0,5,20,16,11,2,3,0],[6,3,1,2,36,21,13,3,5,0],[6,3,1,3,33,11,7,2,2,0],[6,3,1,4,10,5,2,1,2,0],[6,4,0,4,4,3,2,0,1,0],[6,4,0,5,15,10,6,1,3,0],[6,4,0,7,18,13,9,2,2,0],[6,4,1,1,14,5,3,1,1,0],[6,4,1,3,37,19,14,2,3,0],[6,4,1,7,4,1,0,0,1,0],[6,5,0,0,14,10,7,1,2,0],[6,5,0,2,10,7,4,1,2,0],[6,5,0,4,36,18,13,2,3,0],[6,5,1,3,26,13,7,3,3,0],[6,5,1,5,17,10,5,2,3,0],[6,5,1,7,4,1,0,0,1,0],[7,0,0,2,16,10,6,1,3,0],[7,0,0,4,29,19,11,5,3,0],[7,0,0,5,18,10,6,2,2,0],[7,0,1,2,33,19,14,2,3,0],[7,0,1,5,31,16,10,3,3,0],[7,0,1,7,26,14,8,3,3,0],[7,1,0,1,12,8,5,1,2,0],[7,1,0,2,13,10,7,1,2,0],[7,1,0,4,24,16,10,3,3,0],[7,1,1,0,20,10,6,2,2,0],[7,1,1,1,32,13,7,4,2,0],[7,1,1,7,9,4,3,0,1,0],[7,2,0,1,39,21,13,5,3,0],[7,2,0,3,35,24,16,5,3,0],[7,2,0,4,37,19,14,3,2,0],[7,2,1,1,33,17,11,2,4,0],[7,2,1,3,27,12,9,1,2,0],[7,2,1,7,38,18,13,2,3,0],[7,3,0,2,5,3,2,0,1,0],[7,3,0,5,10,6,4,1,1,0],[7,3,0,7,17,12,8,2,2,0],[7,3,1,2,22,9,6,1,2,0],[7,3,1,3,36,15,9,3,3,0],[7,3,1,5,22,10,6,2,2,0],[7,4,0,1,23,12,9,1,2,0],[7,4,0,2,29,21,16,2,3,0],[7,4,0,7,29,17,9,3,5,0],[7,4,1,4,17,6,4,1,1,0],[7,4,1,5,10,5,3,1,1,0],[7,4,1,7,36,20,14,3,3,0],[7,5,0,0,35,24,13,4,7,0],[7,5,0,1,12,9,6,1,2,0],[7,5,0,5,15,9,5,2,2,0],[7,5,1,4,34,18,12,2,4,0],[7,5,1,5,17,9,6,1,2,0],[7,5,1,6,32,11,7,2,2,0],[8,0,0,0,9,5,2,1,2,0],[8,0,0,5,40,23,16,3,4,0],[8,0,0,6,27,20,14,3,3,0],[8,0,1,1,33,17,13,2,2,0],[8,0,1,2,6,2,1,0,1,0],[8,0,1,5,28,11,8,1,2,0],[8,1,0,0,30,20,14,3,3,0],[8,1,0,4,13,10,5,3,2,0],[8,1,0,7,27,22,16,3,3,0],[8,1,1,4,22,9,6,1,2,0],[8,1,1,6,4,2,1,0,1,0],[8,1,1,7,19,8,5,1,2,0],[8,2,0,3,4,2,1,0,1,0],[8,2,0,6,22,17,12,3,2,0],[8,2,0,7,21,17,12,2,3,0],[8,2,1,2,23,11,7,2,2,0],[8,2,1,4,20,9,4,2,3,0],[8,2,1,7,38,18,13,2,3,0],[8,3,0,1,18,11,7,1,3,0],[8,3,0,2,15,11,6,2,3,0],[8,3,0,4,34,23,13,4,6,0],[8,3,1,3,27,13,9,1,3,0],[8,3,1,4,26,10,7,1,2,0],[8,3,1,5,19,6,4,1,1,0],[8,4,0,3,40,22,17,2,3,0],[8,4,0,4,6,3,2,0,1,0],[8,4,0,6,32,24,18,4,2,0],[8,4,1,0,33,15,11,2,2,0],[8,4,1,6,9,5,3,1,1,0],[8,4,1,7,11,5,2,1,2,0],[8,5,0,1,20,15,10,2,3,0],[8,5,0,6,26,13,8,2,3,0],[8,5,0,7,19,16,9,2,5,0],[8,5,1,0,32,17,9,3,5,0],[8,5,1,6,28,10,6,1,3,0],[8,5,1,7,24,12,9,1,2,0],[9,0,0,1,32,26,20,3,3,0],[9,0,0,3,33,24,14,4,6,0],[9,0,0,6,8,6,4,1,1,0],[9,0,1,0,25,10,6,1,3,0],[9,0,1,5,13,5,3,0,2,0],[9,0,1,7,39,22,14,3,5,0],[9,1,0,1,13,10,5,3,2,0],[9,1,0,3,20,13,8,3,2,0],[9,1,0,6,5,2,1,0,1,0],[9,1,1,3,11,4,2,1,1,0],[9,1,1,4,19,11,6,2,3,0],[9,1,1,7,7,3,2,0,1,0],[9,2,0,0,36,19,10,5,4,0],[9,2,0,3,15,9,5,2,2,0],[9,2,0,4,40,22,16,3,3,0],[9,2,1,1,23,9,5,2,2,0],[9,2,1,3,9,5,3,1,1,0],[9,2,1,5,15,6,4,1,1,0],[9,3,0,5,19,10,7,1,2,0],[9,3,0,6,37,28,17,7,4,0],[9,3,0,7,9,4,3,0,1,0],[9,3,1,2,26,12,7,2,3,0],[9,3,1,5,26,13,9,2,2,0],[9,3,1,7,28,13,10,1,2,0],[9,4,0,1,36,18,13,2,3,0],[9,4,0,3,39,30,16,6,8,0],[9,4,0,5,9,5,2,1,2,0],[9,4,1,0,11,4,2,0,2,0],[9,4,1,2,15,5,2,1,2,0],[9,4,1,3,37,15,9,3,3,0],[9,5,0,1,29,24,13,5,6,0],[9,5,0,3,40,26,16,6,4,0],[9,5,0,6,28,20,13,4,3,0],[9,5,1,1,24,11,8,2,1,0],[9,5,1,2,31,15,8,3,4,0],[9,5,1,6,40,22,17,3,2,0],[10,0,0,0,33,23,17,3,3,0],[10,0,0,2,16,10,5,2,3,0],[10,0,0,7,6,4,2,1,1,0],[10,0,1,4,10,4,2,1,1,0],[10,0,1,5,22,8,5,1,2,0],[10,0,1,7,36,20,11,5,4,0],[10,1,0,0,28,15,10,2,3,0],[10,1,0,2,22,18,12,2,4,0],[10,1,0,3,38,22,14,4,4,0],[10,1,1,3,24,11,7,1,3,0],[10,1,1,4,23,8,5,1,2,0],[10,1,1,7,29,10,6,2,2,0],[10,2,0,0,37,21,16,3,2,0],[10,2,0,2,37,23,15,4,4,0],[10,2,0,3,14,9,6,1,2,0],[10,2,1,2,12,6,4,1,1,0],[10,2,1,3,34,14,9,2,3,0],[10,2,1,7,30,17,9,5,3,0],[10,3,0,1,30,23,14,5,4,0],[10,3,0,3,28,22,15,3,4,0],[10,3,0,6,22,13,8,2,3,0],[10,3,1,0,31,15,10,2,3,0],[10,3,1,5,28,12,7,2,3,0],[10,3,1,7,24,14,9,2,3,0],[10,4,0,1,38,27,17,6,4,0],[10,4,0,3,28,18,10,4,4,0],[10,4,0,5,5,2,1,0,1,0],[10,4,1,0,16,9,6,1,2,0],[10,4,1,5,37,19,10,4,5,0],[10,4,1,7,37,15,9,3,3,0],[10,5,0,0,14,9,6,1,2,0],[10,5,0,2,30,16,11,2,3,0],[10,5,0,5,11,8,4,2,2,0],[10,5,1,4,23,10,5,2,3,0],[10,5,1,5,30,10,5,3,2,0],[10,5,1,7,16,6,4,1,1,0],[11,0,0,1,31,24,13,4,7,0],[11,0,0,2,11,6,4,1,1,0],[11,0,0,4,10,5,3,1,1,0],[11,0,1,1,26,10,7,1,2,0],[11,0,1,5,26,10,5,2,3,0],[11,0,1,7,29,14,11,1,2,0],[11,1,0,1,23,14,8,3,3,0],[11,1,0,3,14,11,8,1,2,0],[11,1,0,6,19,14,10,2,2,0],[11,1,1,2,28,11,8,1,2,0],[11,1,1,3,11,4,3,0,1,0],[11,1,1,6,5,2,1,0,1,0],[11,2,0,0,31,15,10,2,3,0],[11,2,0,1,39,22,13,4,5,0],[11,2,0,3,19,14,8,2,4,0],[11,2,1,2,19,7,4,1,2,0],[11,2,1,3,12,7,5,1,1,0],[11,2,1,4,17,7,4,1,2,0],[11,3,0,2,5,3,2,0,1,0],[11,3,0,4,36,19,14,3,2,0],[11,3,0,7,29,20,12,5,3,0],[11,3,1,0,18,7,5,1,1,0],[11,3,1,5,36,19,11,4,4,0],[11,3,1,6,18,7,5,0,2,0],[11,4,0,3,30,15,10,2,3,0],[11,4,0,5,21,11,7,2,2,0],[11,4,0,6,26,21,12,4,5,0],[11,4,1,4,6,2,1,0,1,0],[11,4,1,5,40,22,15,4,3,0],[11,4,1,7,13,5,2,1,2,0],[11,5,0,3,7,5,3,0,2,0],[11,5,0,4,4,2,1,0,1,0],[11,5,0,5,17,13,8,3,2,0],[11,5,1,5,32,18,13,3,2,0],[11,5,1,6,18,7,4,2,1,0],[11,5,1,7,36,13,9,2,2,0],[12,0,0,1,30,15,10,2,3,0],[12,0,0,2,39,23,15,5,3,0],[12,0,0,3,38,22,17,2,3,0],[12,0,1,3,25,12,6,3,3,0],[12,0,1,5,23,8,5,1,2,0],[12,0,1,7,19,6,4,0,2,0],[12,1,0,2,33,26,16,4,6,0],[12,1,0,5,4,2,1,0,1,0],[12,1,0,6,23,13,9,2,2,0],[12,1,1,1,33,16,9,3,4,0],[12,1,1,2,40,16,11,3,2,0],[12,1,1,7,4,1,0,0,1,0],[12,2,0,1,19,10,7,1,2,0],[12,2,0,4,13,7,4,1,2,0],[12,2,0,7,4,2,1,0,1,0],[12,2,1,0,27,10,7,1,2,0],[12,2,1,2,24,10,7,1,2,0],[12,2,1,5,19,6,3,1,2,0],[12,3,0,0,13,9,5,2,2,0],[12,3,0,1,9,7,5,1,1,0],[12,3,0,6,31,20,11,4,5,0],[12,3,1,2,25,9,4,3,2,0],[12,3,1,3,6,3,2,0,1,0],[12,3,1,5,13,5,3,1,1,0],[12,4,0,1,29,24,16,5,3,0],[12,4,0,2,22,11,8,1,2,0],[12,4,0,5,34,18,11,3,4,0],[12,4,1,0,23,11,7,2,2,0],[12,4,1,5,23,13,8,2,3,0],[12,4,1,6,18,9,5,1,3,0],[12,5,0,4,18,10,7,1,2,0],[12,5,0,5,27,18,12,3,3,0],[12,5,0,6,18,14,8,2,4,0],[12,5,1,3,36,13,9,2,2,0],[12,5,1,4,39,18,12,3,3,0],[12,5,1,5,30,15,11,1,3,0],[13,0,0,1,7,4,2,1,1,0],[13,0,0,2,9,4,2,0,2,0],[13,0,0,4,33,19,13,3,3,0],[13,0,1,1,26,10,7,1,2,0],[13,0,1,4,20,7,4,1,2,0],[13,0,1,7,35,12,8,1,3,0],[13,1,0,4,35,18,13,2,3,0],[13,1,0,5,6,4,2,0,2,0],[13,1,0,6,32,16,12,2,2,0],[13,1,1,4,13,6,3,2,1,0],[13,1,1,5,6,3,1,0,2,0],[13,1,1,6,32,11,6,2,3,0],[13,2,0,3,17,9,5,2,2,0],[13,2,0,6,32,20,15,2,3,0],[13,2,0,7,27,16,9,4,3,0],[13,2,1,2,21,9,5,2,2,0],[13,2,1,3,33,18,12,3,3,0],[13,2,1,7,4,1,0,0,1,0],[13,3,0,4,31,22,15,3,4,0],[13,3,0,5,6,4,3,0,1,0],[13,3,0,6,19,15,11,2,2,0],[13,3,1,2,36,15,9,2,4,0],[13,3,1,4,36,20,12,5,3,0],[13,3,1,6,25,9,5,1,3,0],[13,4,0,1,40,30,23,4,3,0],[13,4,0,5,4,3,2,0,1,0],[13,4,0,6,23,17,10,4,3,0],[13,4,1,0,8,4,2,0,2,0],[13,4,1,1,38,13,7,2,4,0],[13,4,1,5,15,6,3,1,2,0],[13,5,0,0,32,18,12,3,3,0],[13,5,0,1,16,9,5,1,3,0],[13,5,0,7,9,4,3,0,1,0],[13,5,1,0,17,7,5,0,2,0],[13,5,1,1,29,14,10,1,3,0],[13,5,1,2,38,19,10,4,5,0]],"B":[[0,0,0,0,8,6,3,1,2,0],[0,0,0,1,6,3,1,0,2,0],[0,0,0,3,7,5,2,1,2,0],[0,0,1,1,10,4,2,1,1,0],[0,0,1,2,30,11,6,2,3,0],[0,0,1,3,7,4,2,1,1,0],[0,1,0,5,44,31,20,5,6,0],[0,1,0,7,27,16,11,3,2,0],[0,1,1,4,11,5,2,1,2,0],[0,1,1,6,25,13,9,2,2,0],[0,1,1,7,30,10,7,1,2,0],[0,2,0,10,74,58,38,10,10,0],[0,2,0,11,26,13,8,2,3,0],[0,2,1,9,53,25,14,5,6,0],[0,2,1,11,9,3,1,0,2,0],[0,3,0,12,35,27,16,5,6,0],[0,3,0,13,43,26,17,3,6,0],[0,3,1,12,49,23,16,3,4,0],[0,3,1,15,29,13,7,3,3,0],[0,4,0,16,12,8,5,0,3,0],[0,4,0,18,26,18,12,2,4,0],[0,4,1,18,47,24,14,4,6,0],[0,4,1,19,23,8,4,2,2,0],[0,5,0,21,19,14,10,1,3,0],[0,5,0,22,55,35,21,8,6,0],[0,5,1,20,5,2,1,0,1,0],[0,5,1,22,41,20,13,2,5,0],[1,0,0,0,62,48,32,8,8,0],[1,0,0,1,31,24,15,5,4,0],[1,0,1,0,14,5,2,1,2,0],[1,0,1,2,13,6,3,1,2,0],[1,0,1,3,13,6,4,1,1,0],[1,1,0,4,20,11,7,2,2,0],[1,1,0,5,31,26,15,7,4,0],[1,1,0,6,20,13,9,1,3,0],[1,1,1,5,34,17,9,3,5,0],[1,1,1,7,51,20,12,3,5,0],[1,2,0,8,19,10,5,2,3,0],[1,2,0,10,36,25,14,5,6,0],[1,2,0,11,39,19,14,2,3,0],[1,2,1,10,39,22,13,4,5,0],[1,2,1,11,19,7,3,1,3,0],[1,3,0,12,29,23,13,6,4,0],[1,3,0,13,14,10,7,1,2,0],[1,3,0,14,13,7,4,1,2,0],[1,3,1,12,11,6,4,1,1,0],[1,3,1,14,9,4,2,1,1,0],[1,3,1,15,5,2,1,0,1,0],[1,4,0,18,6,4,2,1,1,0],[1,4,0,19,44,24,14,5,5,0],[1,4,1,16,29,15,9,3,3,0],[1,4,1,19,21,10,5,3,2,0],[1,5,0,20,35,18,10,3,5,0],[1,5,0,21,22,14,10,1,3,0],[1,5,1,21,50,19,14,2,3,0],[1,5,1,23,38,21,13,4,4,0],[2,0,0,0,12,6,4,1,1,0],[2,0,0,2,19,14,7,3,4,0],[2,0,0,3,14,7,5,1,1,0],[2,0,1,0,25,11,7,2,2,0],[2,0,1,1,6,3,1,1,1,0],[2,0,1,2,27,15,11,2,2,0],[2,1,0,4,38,19,10,3,6,0],[2,1,0,5,28,21,15,3,3,0],[2,1,1,4,18,6,3,1,2,0],[2,1,1,5,6,3,2,0,1,0],[2,1,1,7,36,13,8,2,3,0],[2,2,0,8,75,47,33,5,9,0],[2,2,1,9,25,9,5,2,2,0],[2,2,1,11,8,3,2,0,1,0],[2,3,0,12,17,12,7,2,3,0],[2,3,0,13,4,2,1,0,1,0],[2,3,0,15,33,21,12,6,3,0],[2,3,1,12,9,3,2,0,1,0],[2,3,1,15,26,11,8,1,2,0],[2,4,0,18,11,8,4,2,2,0],[2,4,0,19,58,31,16,7,8,0],[2,4,1,16,24,12,9,1,2,0],[2,4,1,17,4,2,1,0,1,0],[2,4,1,19,28,16,11,2,3,0],[2,5,0,20,21,11,8,1,2,0],[2,5,0,21,19,15,9,2,4,0],[2,5,0,22,31,25,18,4,3,0],[2,5,1,20,30,13,9,2,2,0],[2,5,1,22,35,12,9,1,2,0],[2,5,1,23,30,13,8,3,2,0],[3,0,0,1,63,45,33,5,7,0],[3,0,1,1,9,3,2,0,1,0],[3,0,1,2,20,11,6,2,3,0],[3,0,1,3,28,12,8,2,2,0],[3,1,0,5,9,5,3,1,1,0],[3,1,0,7,52,39,27,6,6,0],[3,1,1,4,33,12,8,1,3,0],[3,1,1,7,66,33,20,4,9,0],[3,2,0,8,23,19,13,3,3,0],[3,2,0,9,28,16,11,2,3,0],[3,2,0,11,11,5,3,1,1,0],[3,2,1,10,19,8,4,1,3,0],[3,2,1,11,32,11,6,2,3,0],[3,3,0,13,18,11,6,3,2,0],[3,3,0,14,66,36,23,4,9,0],[3,3,1,13,47,18,11,2,5,0],[3,3,1,15,7,3,1,1,1,0],[3,4,0,16,14,8,4,2,2,0],[3,4,0,18,32,17,9,3,5,0],[3,4,0,19,6,3,2,0,1,0],[3,4,1,17,28,12,9,1,2,0],[3,4,1,19,25,9,6,1,2,0],[3,5,0,20,20,11,6,2,3,0],[3,5,0,22,21,12,9,1,2,0],[3,5,0,23,6,3,1,1,1,0],[3,5,1,20,8,2,1,0,1,0],[3,5,1,21,35,13,9,2,2,0],[3,5,1,23,28,15,11,2,2,0],[4,0,0,0,34,23,14,6,3,0],[4,0,0,1,29,22,13,3,6,0],[4,0,0,2,24,15,11,2,2,0],[4,0,1,0,17,6,4,1,1,0],[4,0,1,1,38,21,15,2,4,0],[4,0,1,3,15,6,3,1,2,0],[4,1,0,5,43,23,13,5,5,0],[4,1,0,6,27,15,9,3,3,0],[4,1,1,5,16,9,5,2,2,0],[4,1,1,7,33,11,6,1,4,0],[4,2,0,8,54,36,22,8,6,0],[4,2,1,8,44,17,10,4,3,0],[4,2,1,10,8,3,2,0,1,0],[4,3,0,14,56,42,26,6,10,0],[4,3,0,15,14,9,6,1,2,0],[4,3,1,13,17,6,2,1,3,0],[4,3,1,15,9,4,3,0,1,0],[4,4,0,17,18,12,8,1,3,0],[4,4,0,19,40,21,15,2,4,0],[4,4,1,16,52,26,18,4,4,0],[4,4,1,17,6,2,1,0,1,0],[4,5,0,22,19,12,8,2,2,0],[4,5,0,23,54,38,27,5,6,0],[4,5,1,20,6,3,1,1,1,0],[4,5,1,22,31,13,9,2,2,0],[4,5,1,23,15,8,5,1,2,0],[5,0,0,0,16,8,6,0,2,0],[5,0,0,1,18,9,5,2,2,0],[5,0,0,3,12,6,3,1,2,0],[5,0,1,1,35,16,10,2,4,0],[5,0,1,2,33,12,8,2,2,0],[5,1,0,6,49,35,21,8,6,0],[5,1,0,7,39,26,18,5,3,0],[5,1,1,4,22,12,7,2,3,0],[5,1,1,5,27,11,6,2,3,0],[5,1,1,6,4,2,1,0,1,0],[5,2,0,8,7,3,1,0,2,0],[5,2,0,10,45,24,15,5,4,0],[5,2,1,9,32,11,7,2,2,0],[5,2,1,10,29,16,12,1,3,0],[5,2,1,11,14,5,3,0,2,0],[5,3,0,12,17,9,5,1,3,0],[5,3,0,15,37,27,16,7,4,0],[5,3,1,15,62,24,14,4,6,0],[5,4,0,16,11,6,4,1,1,0],[5,4,0,18,29,19,13,2,4,0],[5,4,1,17,16,9,6,1,2,0],[5,4,1,19,59,31,20,6,5,0],[5,5,0,21,39,27,18,3,6,0],[5,5,0,22,17,10,6,2,2,0],[5,5,1,20,36,14,8,2,4,0],[5,5,1,22,16,8,6,1,1,0],[6,0,0,0,22,14,8,3,3,0],[6,0,0,1,22,13,8,2,3,0],[6,0,0,2,22,11,8,2,1,0],[6,0,1,0,70,32,19,4,9,0],[6,0,1,3,7,3,1,1,1,0],[6,1,0,4,26,17,11,3,3,0],[6,1,0,5,57,41,31,4,6,0],[6,1,1,4,66,36,22,6,8,0],[6,1,1,6,26,9,7,1,1,0],[6,2,0,8,26,18,12,3,3,0],[6,2,0,9,66,49,34,8,7,0],[6,2,1,9,33,13,8,2,3,0],[6,2,1,10,14,6,4,0,2,0],[6,3,0,12,16,10,7,1,2,0],[6,3,0,13,44,33,21,5,7,0],[6,3,1,13,46,26,15,4,7,0],[6,3,1,15,33,11,7,2,2,0],[6,4,0,17,15,10,6,1,3,0],[6,4,0,19,22,16,11,2,3,0],[6,4,1,18,4,1,0,0,1,0],[6,4,1,19,51,24,17,3,4,0],[6,5,0,21,14,10,7,1,2,0],[6,5,0,22,10,7,4,1,2,0],[6,5,0,23,36,18,13,2,3,0],[6,5,1,20,30,14,7,3,4,0],[6,5,1,23,17,10,5,2,3,0],[7,0,0,0,34,20,12,3,5,0],[7,0,0,1,29,19,11,5,3,0],[7,0,1,2,31,16,10,3,3,0],[7,0,1,3,59,33,22,5,6,0],[7,1,0,6,49,34,22,5,7,0],[7,1,1,5,41,17,10,4,3,0],[7,1,1,6,20,10,6,2,2,0],[7,2,0,8,39,21,13,5,3,0],[7,2,0,9,37,19,14,3,2,0],[7,2,0,11,35,24,16,5,3,0],[7,2,1,9,38,18,13,2,3,0],[7,2,1,10,33,17,11,2,4,0],[7,2,1,11,27,12,9,1,2,0],[7,3,0,12,22,15,10,2,3,0],[7,3,0,14,10,6,4,1,1,0],[7,3,1,13,22,10,6,2,2,0],[7,3,1,14,58,24,15,4,5,0],[7,4,0,16,58,38,25,5,8,0],[7,4,0,18,23,12,9,1,2,0],[7,4,1,16,53,26,18,4,4,0],[7,4,1,17,10,5,3,1,1,0],[7,5,0,20,35,24,13,4,7,0],[7,5,0,22,27,18,11,3,4,0],[7,5,1,21,34,18,12,2,4,0],[7,5,1,23,49,20,13,3,4,0],[8,0,0,0,36,25,16,4,5,0],[8,0,0,2,40,23,16,3,4,0],[8,0,1,0,34,13,9,1,3,0],[8,0,1,3,33,17,13,2,2,0],[8,1,0,5,43,30,19,6,5,0],[8,1,0,6,27,22,16,3,3,0],[8,1,1,6,26,11,7,1,3,0],[8,1,1,7,19,8,5,1,2,0],[8,2,0,8,22,17,12,3,2,0],[8,2,0,9,21,17,12,2,3,0],[8,2,0,10,4,2,1,0,1,0],[8,2,1,8,38,18,13,2,3,0],[8,2,1,9,43,20,11,4,5,0],[8,3,0,12,33,22,13,3,6,0],[8,3,0,14,34,23,13,4,6,0],[8,3,1,12,53,23,16,2,5,0],[8,3,1,13,19,6,4,1,1,0],[8,4,0,16,32,24,18,4,2,0],[8,4,0,18,6,3,2,0,1,0],[8,4,0,19,40,22,17,2,3,0],[8,4,1,17,9,5,3,1,1,0],[8,4,1,18,33,15,11,2,2,0],[8,4,1,19,11,5,2,1,2,0],[8,5,0,20,20,15,10,2,3,0],[8,5,0,22,45,29,17,4,8,0],[8,5,1,21,24,12,9,1,2,0],[8,5,1,22,60,27,15,4,8,0],[9,0,0,0,33,24,14,4,6,0],[9,0,0,1,40,32,24,4,4,0],[9,0,1,2,13,5,3,0,2,0],[9,0,1,3,64,32,20,4,8,0],[9,1,0,4,13,10,5,3,2,0],[9,1,0,5,25,15,9,3,3,0],[9,1,1,5,7,3,2,0,1,0],[9,1,1,6,30,15,8,3,4,0],[9,2,0,10,91,50,31,10,9,0],[9,2,1,9,32,14,8,3,3,0],[9,2,1,10,15,6,4,1,1,0],[9,3,0,12,37,28,17,7,4,0],[9,3,0,14,19,10,7,1,2,0],[9,3,0,15,9,4,3,0,1,0],[9,3,1,12,52,25,16,4,5,0],[9,3,1,14,28,13,10,1,2,0],[9,4,0,17,9,5,2,1,2,0],[9,4,0,18,39,30,16,6,8,0],[9,4,0,19,36,18,13,2,3,0],[9,4,1,16,15,5,2,1,2,0],[9,4,1,18,11,4,2,0,2,0],[9,4,1,19,37,15,9,3,3,0],[9,5,0,20,57,44,26,9,9,0],[9,5,0,21,40,26,16,6,4,0],[9,5,1,20,24,11,8,2,1,0],[9,5,1,21,31,15,8,3,4,0],[9,5,1,23,40,22,17,3,2,0],[10,0,0,0,6,4,2,1,1,0],[10,0,0,3,49,33,22,5,6,0],[10,0,1,0,68,32,18,7,7,0],[10,1,0,4,38,22,14,4,4,0],[10,1,0,5,50,33,22,4,7,0],[10,1,1,5,24,11,7,1,3,0],[10,1,1,7,52,18,11,3,4,0],[10,2,0,8,88,53,37,8,8,0],[10,2,1,8,34,14,9,2,3,0],[10,2,1,9,30,17,9,5,3,0],[10,2,1,10,12,6,4,1,1,0],[10,3,0,12,28,22,15,3,4,0],[10,3,0,13,30,23,14,5,4,0],[10,3,0,14,22,13,8,2,3,0],[10,3,1,13,31,15,10,2,3,0],[10,3,1,14,24,14,9,2,3,0],[10,3,1,15,28,12,7,2,3,0],[10,4,0,16,5,2,1,0,1,0],[10,4,0,18,38,27,17,6,4,0],[10,4,0,19,28,18,10,4,4,0],[10,4,1,16,37,15,9,3,3,0],[10,4,1,17,16,9,6,1,2,0],[10,4,1,18,37,19,10,4,5,0],[10,5,0,21,41,24,15,4,5,0],[10,5,0,23,14,9,6,1,2,0],[10,5,1,20,69,26,14,6,6,0],[11,0,0,0,10,5,3,1,1,0],[11,0,0,3,42,30,17,5,8,0],[11,0,1,0,26,10,7,1,2,0],[11,0,1,1,55,24,16,3,5,0],[11,1,0,4,33,25,18,3,4,0],[11,1,0,7,23,14,8,3,3,0],[11,1,1,6,39,15,11,1,3,0],[11,1,1,7,5,2,1,0,1,0],[11,2,0,9,50,29,18,4,7,0],[11,2,0,10,39,22,13,4,5,0],[11,2,1,11,48,21,13,3,5,0],[11,3,0,12,36,19,14,3,2,0],[11,3,0,13,29,20,12,5,3,0],[11,3,0,15,5,3,2,0,1,0],[11,3,1,12,18,7,5,1,1,0],[11,3,1,13,18,7,5,0,2,0],[11,3,1,14,36,19,11,4,4,0],[11,4,0,17,21,11,7,2,2,0],[11,4,0,18,30,15,10,2,3,0],[11,4,0,19,26,21,12,4,5,0],[11,4,1,17,46,24,16,4,4,0],[11,4,1,18,13,5,2,1,2,0],[11,5,0,20,7,5,3,0,2,0],[11,5,0,22,21,15,9,3,3,0],[11,5,1,23,86,38,26,7,5,0],[12,0,0,0,39,23,15,5,3,0],[12,0,0,1,38,22,17,2,3,0],[12,0,0,2,30,15,10,2,3,0],[12,0,1,1,44,18,10,3,5,0],[12,0,1,2,23,8,5,1,2,0],[12,1,0,5,33,26,16,4,6,0],[12,1,0,6,27,15,10,2,3,0],[12,1,1,4,4,1,0,0,1,0],[12,1,1,6,40,16,11,3,2,0],[12,1,1,7,33,16,9,3,4,0],[12,2,0,10,23,12,8,1,3,0],[12,2,0,11,13,7,4,1,2,0],[12,2,1,9,27,10,7,1,2,0],[12,2,1,10,43,16,10,2,4,0],[12,3,0,12,13,9,5,2,2,0],[12,3,0,15,40,27,16,5,6,0],[12,3,1,12,6,3,2,0,1,0],[12,3,1,15,38,14,7,4,3,0],[12,4,0,17,63,42,27,8,7,0],[12,4,0,19,22,11,8,1,2,0],[12,4,1,17,41,22,13,3,6,0],[12,4,1,18,23,11,7,2,2,0],[12,5,0,20,36,24,15,3,6,0],[12,5,0,23,27,18,12,3,3,0],[12,5,1,20,66,28,20,3,5,0],[12,5,1,21,39,18,12,3,3,0],[13,0,0,1,40,23,15,4,4,0],[13,0,0,3,9,4,2,0,2,0],[13,0,1,0,46,17,11,2,4,0],[13,0,1,2,35,12,8,1,3,0],[13,1,0,4,41,22,15,2,5,0],[13,1,0,5,32,16,12,2,2,0],[13,1,1,6,32,11,6,2,3,0],[13,1,1,7,19,9,4,2,3,0],[13,2,0,8,44,25,14,6,5,0],[13,2,0,9,32,20,15,2,3,0],[13,2,1,9,54,27,17,5,5,0],[13,2,1,10,4,1,0,0,1,0],[13,3,0,13,37,26,18,3,5,0],[13,3,0,14,19,15,11,2,2,0],[13,3,1,14,36,20,12,5,3,0],[13,3,1,15,61,24,14,3,7,0],[13,4,0,17,27,20,12,4,4,0],[13,4,0,19,40,30,23,4,3,0],[13,4,1,16,15,6,3,1,2,0],[13,4,1,18,38,13,7,2,4,0],[13,4,1,19,8,4,2,0,2,0],[13,5,0,20,25,13,8,1,4,0],[13,5,0,23,32,18,12,3,3,0],[13,5,1,20,17,7,5,0,2,0],[13,5,1,22,38,19,10,4,5,0],[13,5,1,23,29,14,10,1,3,0]],"T":{"hubs":{"demo hub 1":[0.679,0.754],"demo hub 2":[0.563,0.73],"demo hub 3":[0.666,0.778],"demo hub 4":[0.61,0.772],"demo hub 5":[0.681,0.653],"demo hub 6":[0.598,0.735]},"areas":{"Area A":[0.63,0.73],"Area B":[0.62,0.72]},"total":[0.65,0.75],"nh":6,"na":2}};const D0=D;let LAST=null;let META={demo:true};let TG=D0.T||{hubs:{},areas:{},total:null};const nk=s=>String(s).trim().toLowerCase();
+const $=i=>document.getElementById(i);
+const fmt=n=>Math.round(n).toLocaleString('en-US');
+const pc=(a,b)=>b?a/b:0;
+const pf=x=>(x*100).toFixed(1)+'%';
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const dl=i=>{const p=D.days[i].split('-');return MON[+p[1]-1]+' '+(+p[2])};
+const S={dim:'hub',view:'rate',sort:'del',dir:-1,lim:100,q:''};
+const DIMS={hub:'Hub',area:'Area',cust:'Customer',cour:'Courier'};
+const VIEWS={rate:'Delivery rate',d12:'D1 / D2',tgt:'vs Target'};
+function opts(el,list,all){el.innerHTML=(all?'<option value="">All</option>':'')+list.map(([v,t])=>`<option value="${v}">${t}</option>`).join('')}
+function fillHubs(){const a=$('fArea').value;const cur=$('fHub').value;opts($('fHub'),D.hubs.map((h,i)=>[i,h]).filter(x=>!a||D.hubArea[x[0]]===a),1);$('fHub').value=[...$('fHub').options].some(o=>o.value===cur)?cur:''}
+function initUI(){const areas=[...new Set(D.hubArea)].sort();opts($('fArea'),areas.map(a=>[a,a]),1);fillHubs();
+opts($('fCust'),D.customers.map((c,i)=>[i,c]),1);
+opts($('fFrom'),D.days.map((d,i)=>[i,dl(i)]));opts($('fTo'),D.days.map((d,i)=>[i,dl(i)]));
+$('fTo').value=D.days.length-1;$('fShip').value='';S.q='';$('q').value='';S.lim=100;}
+initUI();
+$('tabs').innerHTML=Object.entries(DIMS).map(([k,t])=>`<button data-d="${k}">${t}</button>`).join('');
+$('views').innerHTML=Object.entries(VIEWS).map(([k,t])=>`<button data-v="${k}">${t}</button>`).join('');
+const F=()=>({area:$('fArea').value,hub:$('fHub').value,ship:$('fShip').value,cust:$('fCust').value,from:+$('fFrom').value,to:+$('fTo').value});
+const Z=()=>({del:0,col:0,l:0,lc:0,f:0,fc:0,d1:0,d2:0,d3:0,u:0});
+function agg(rows,f,keyFn){
+  const m=new Map();
+  for(const r of rows){
+    if(r[0]<f.from||r[0]>f.to)continue;
+    if(f.hub!==''&&r[1]!=f.hub)continue;
+    if(f.area&&D.hubArea[r[1]]!==f.area)continue;
+    if(f.ship!==''&&r[2]!=f.ship)continue;
+    if(rows===D.A&&f.cust!==''&&r[3]!=f.cust)continue;
+    const k=keyFn(r);let o=m.get(k);
+    if(!o){o=Z();o.name=k;m.set(k,o)}
+    o.del+=r[4];o.col+=r[5];
+    if(r[2]==0){o.l+=r[4];o.lc+=r[5]}else{o.f+=r[4];o.fc+=r[5]}
+    o.d1+=r[6];o.d2+=r[7];o.d3+=r[8];o.u+=r[9];
+  }
+  return m;
+}
+const gap=(r,t)=>t==null?null:(r-t)*100,ach=(r,t)=>t?r/t:null;
+function render(){
+  const f=F();
+  if(f.from>f.to){$('fTo').value=f.from;f.to=f.from}
+  $('range').textContent='— '+dl(f.from)+' to '+dl(f.to);
+  const tot=[...agg(D.A,f,()=>'t').values()][0]||Z();
+  const cl=tot.d1+tot.d2+tot.d3;
+  const K=[['Out for delivery',fmt(tot.del),'Delivery sheet',1],['Signed',fmt(tot.col),'Signed sheet'],['Delivery rate',pf(pc(tot.col,tot.del)),'Signed ÷ out',1],['Local delivery rate',pf(pc(tot.lc,tot.l)),fmt(tot.lc)+' of '+fmt(tot.l)+' out'],['Fulfillment delivery rate',pf(pc(tot.fc,tot.f)),fmt(tot.fc)+' of '+fmt(tot.f)+' out'],['D1 rate',pf(pc(tot.d1,cl)),'of classified Signed'],['D2 rate',pf(pc(tot.d2,cl)),'of classified Signed'],['Over 2 days',pf(pc(tot.d3,cl)),'of classified Signed']];
+  const ft=f.cust!==''?null:f.hub!==''?(TG.hubs[nk(D.hubs[f.hub])]||null):f.area?(TG.areas[f.area]||null):TG.total;
+  const tA=ft&&f.ship===''&&tot.del?ft[0]:null,tL=ft&&f.ship!=='1'&&tot.l?ft[1]:null,rA=pc(tot.col,tot.del),rL=pc(tot.lc,tot.l);
+  const gs=g=>g==null?'—':(g>=0?'+':'−')+Math.abs(g).toFixed(1)+' pp',sb=(r,t)=>t==null?'No target for this selection':pf(r)+' vs target '+pf(t);
+  const cg=g=>g==null?'':g>=0?'pos':'neg';
+  const gA=gap(rA,tA),gL=gap(rL,tL),aA=ach(rA,tA),aL=ach(rL,tL);
+  K.push(['All: gap to target',gs(gA),sb(rA,tA),0,cg(gA)],['Local: gap to target',gs(gL),sb(rL,tL),0,cg(gL)],['Achievement rate (All)',aA==null?'—':pf(aA),'achieved ÷ target',1,aA==null?'':aA>=1?'pos':'neg'],['Achievement rate (Local)',aL==null?'—':pf(aL),'achieved ÷ target',0,aL==null?'':aL>=1?'pos':'neg']);
+  const dm=agg(D.A,f,r=>r[0]),dd=[...dm.keys()].sort((a,b)=>a-b);
+  const tipR=(name,v,tg,extra)=>{const a=[name,'Value: '+pf(v)];if(extra)a.push(extra);if(tg!=null)a.push('Target: '+pf(tg)+' · gap '+sgn((v-tg)*100));return a};
+  const rF=pc(tot.fc,tot.f),pD1=pc(tot.d1,cl),pD2=pc(tot.d2,cl),pD3=pc(tot.d3,cl);
+  const SP=[
+    {t:'spark',key:'del',name:'Out for delivery'},
+    {t:'spark',key:'col',name:'Delivered'},
+    {t:'ring',v:rA,tg:tA,tip:tipR('Delivery rate',rA,tA,fmt(tot.col)+' of '+fmt(tot.del)+' out')},
+    {t:'ring',v:rL,tg:tL,tip:tipR('Local delivery rate',rL,tL,fmt(tot.lc)+' of '+fmt(tot.l)+' out')},
+    tot.f?{t:'ring',v:rF,tip:tipR('Fulfillment delivery rate',rF,null,fmt(tot.fc)+' of '+fmt(tot.f)+' out')}:null,
+    cl?{t:'ring',v:pD1,tip:tipR('D1 rate',pD1,null,fmt(tot.d1)+' of '+fmt(cl)+' classified')}:null,
+    cl?{t:'ring',v:pD2,tip:tipR('D2 rate',pD2,null,fmt(tot.d2)+' of '+fmt(cl)+' classified')}:null,
+    cl?{t:'ring',v:pD3,col:'warn',tip:tipR('Over 2 days',pD3,null,fmt(tot.d3)+' of '+fmt(cl)+' classified')}:null,
+    tA!=null?{t:'ring',v:rA,tg:tA,col:gA>=0?'acc':'warn',tip:tipR('All: rate vs target',rA,tA)}:null,
+    tL!=null?{t:'ring',v:rL,tg:tL,col:gL>=0?'acc':'warn',tip:tipR('Local: rate vs target',rL,tL)}:null,
+    aA!=null?{t:'ring',v:Math.min(aA,1),col:aA>=1?'acc':'warn',tip:['Achievement rate (All)','Achieved: '+pf(aA),'Rate '+pf(rA)+' ÷ target '+pf(tA)]}:null,
+    aL!=null?{t:'ring',v:Math.min(aL,1),col:aL>=1?'acc':'warn',tip:['Achievement rate (Local)','Achieved: '+pf(aL),'Rate '+pf(rL)+' ÷ target '+pf(tL)]}:null
+  ];
+  SP.forEach(s=>{if(s&&s.t==='spark'){s.pts=dd.map(d=>dm.get(d)[s.key]);s.days=dd}});
+  const kcSvg=(s,i)=>{
+    if(!s)return'';
+    if(s.t==='ring'){const z=28,c=14,r=11,w=4.5,C=2*Math.PI*r,v=Math.max(0,Math.min(1,s.v||0));
+      let h=`<svg class="kc ring" data-i="${i}" viewBox="0 0 ${z} ${z}" width="${z}" height="${z}" tabindex="0" role="img" aria-label="${esc(s.tip[0]+': '+s.tip[1])}"><circle class="kt" cx="${c}" cy="${c}" r="${r}" stroke-width="${w}"/>`;
+      if(v>0)h+=`<circle class="kf ${s.col||'acc'}" cx="${c}" cy="${c}" r="${r}" stroke-width="${w}" stroke-dasharray="${(v*C).toFixed(2)} ${C.toFixed(2)}" transform="rotate(-90 ${c} ${c})"/>`;
+      if(s.tg!=null){const a=-Math.PI/2+Math.min(s.tg,1)*2*Math.PI,r1=r-w/2-1.2,r2=r+w/2+1.2;h+=`<line class="ktg" x1="${(c+r1*Math.cos(a)).toFixed(2)}" y1="${(c+r1*Math.sin(a)).toFixed(2)}" x2="${(c+r2*Math.cos(a)).toFixed(2)}" y2="${(c+r2*Math.sin(a)).toFixed(2)}"/>`}
+      return h+'</svg>'}
+    const n=s.pts.length;if(n<2)return'';
+    const w=44,h=26,mx=Math.max(1,...s.pts),X=j=>2+j*(w-4)/(n-1),Y=v=>h-3-v/mx*(h-8),line=s.pts.map((v,j)=>X(j).toFixed(1)+','+Y(v).toFixed(1)).join(' ');
+    return `<svg class="kc spark" data-i="${i}" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="${esc(s.name+' per day')}"><polygon class="ka" points="${X(0)},${h-3} ${line} ${X(n-1)},${h-3}"/><polyline class="kl" points="${line}"/><circle class="kd" cx="${X(n-1).toFixed(1)}" cy="${Y(s.pts[n-1]).toFixed(1)}" r="2"/><circle class="km" r="2.6" visibility="hidden"/></svg>`};
+  $('kpis').innerHTML=K.map((k,i)=>`<div class="kpi${k[3]?' main':''}">${kcSvg(SP[i],i)}<b class="${k[4]||''}">${k[1]}</b><span>${k[0]}</span><small>${k[2]}</small></div>`).join('');
+  wire($('kpis'),'.kc.ring',i=>SP[i].tip);
+  $('kpis').querySelectorAll('.kc.spark').forEach(n=>{const s=SP[+n.dataset.i],m=n.querySelector('.km'),np=s.pts.length,w=44,h=26,mx=Math.max(1,...s.pts);
+    const show=e=>{const r=n.getBoundingClientRect(),j=Math.max(0,Math.min(np-1,Math.round((e.clientX-r.left)/r.width*(w)/ (w-4)*(np-1)-2/(w-4)*(np-1))));
+      m.setAttribute('cx',(2+j*(w-4)/(np-1)).toFixed(1));m.setAttribute('cy',(h-3-s.pts[j]/mx*(h-8)).toFixed(1));m.setAttribute('visibility','visible');
+      showTip(e,[dl(s.days[j]),s.name+': '+fmt(s.pts[j])])};
+    n.addEventListener('pointermove',show);n.addEventListener('pointerdown',show);
+    n.addEventListener('pointerleave',e=>{if(e.pointerType==='mouse'){hideTip();m.setAttribute('visibility','hidden')}})});
+  const kf={hub:r=>D.hubs[r[1]],area:r=>D.hubArea[r[1]],cust:r=>D.customers[r[3]],cour:r=>D.couriers[r[3]]}[S.dim];
+  const m=agg(S.dim==='cour'?D.B:D.A,f,kf);
+  const dt=[...m.values()].reduce((a,o)=>a+o.del,0);
+  const cls=o=>o.d1+o.d2+o.d3;
+  const tfor=(o,k)=>{if(f.cust!==''||(k===0&&f.ship!=='')||(k===1&&f.ship==='1'))return null;if(k===1&&!o.l)return null;if(k===0&&!o.del)return null;const v=S.dim==='hub'?TG.hubs[nk(o.name)]:S.dim==='area'?TG.areas[o.name]:null;return v?v[k]:null};
+  const C=S.view==='rate'?[
+    ['del','Out for delivery',o=>o.del,'n'],['share','% of total out',o=>pc(o.del,dt),'p2'],['col','Signed',o=>o.col,'n'],['rate','Delivery rate',o=>pc(o.col,o.del),'p'],
+    ['l','Local out',o=>o.l,'n'],['lc','Local Signed',o=>o.lc,'n'],['lr','Local rate',o=>pc(o.lc,o.l),'p'],
+    ['f','Fulfillment out',o=>o.f,'n'],['fc','Fulfillment Signed',o=>o.fc,'n'],['fr','Fulfillment rate',o=>pc(o.fc,o.f),'p']
+  ]:S.view==='tgt'?[
+    ['rate','Delivery rate',o=>pc(o.col,o.del),'p'],['ta','Target (All)',o=>tfor(o,0),'pt'],['ga','Gap (All, pp)',o=>gap(pc(o.col,o.del),tfor(o,0)),'g'],['aa','Achievement (All)',o=>ach(pc(o.col,o.del),tfor(o,0)),'a'],
+    ['lr','Local rate',o=>pc(o.lc,o.l),'p'],['tl','Target (Local)',o=>tfor(o,1),'pt'],['gl','Gap (Local, pp)',o=>gap(pc(o.lc,o.l),tfor(o,1)),'g'],['al','Achievement (Local)',o=>ach(pc(o.lc,o.l),tfor(o,1)),'a']
+  ]:[
+    ['col','Signed',o=>o.col,'n'],['d1','D1',o=>o.d1,'n'],['d1p','D1 rate',o=>pc(o.d1,cls(o)),'p'],['d2','D2',o=>o.d2,'n'],['d2p','D2 rate',o=>pc(o.d2,cls(o)),'p'],['d3p','Over 2 days',o=>pc(o.d3,cls(o)),'p2'],['u','Unclassified',o=>o.u,'n']
+  ];
+  if(!C.some(c=>c[0]===S.sort))S.sort=C[0][0];
+  const sc=C.find(c=>c[0]===S.sort);
+  let rows=[...m.values()].filter(o=>(o.del+o.col)>0&&(!S.q||o.name.toLowerCase().includes(S.q.toLowerCase())));
+  rows.sort((a,b)=>{const x=sc[2](a),y=sc[2](b);if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;return(y-x)*-S.dir});
+  const n=rows.length;LAST={C,rows,dim:S.dim,view:S.view};CH={all:rows,tot,f,tfor,tA,tL,dim:S.dim};rows=rows.slice(0,S.lim);
+  $('thead').innerHTML='<tr><th>'+DIMS[S.dim]+'</th>'+C.map(c=>`<th data-s="${c[0]}" class="${c[0]===S.sort?'on':''}">${c[1]}${c[0]===S.sort?(S.dir<0?' ▼':' ▲'):''}</th>`).join('')+'</tr>';
+  $('tbody').innerHTML=rows.map(o=>'<tr><td class="name" title="'+o.name+'">'+o.name+'</td>'+C.map(c=>{const v=c[2](o);if(v==null)return'<td class="n">—</td>';if(c[3]==='n')return`<td class="n">${fmt(v)}</td>`;if(c[3]==='g')return`<td class="g ${v>=0?'pos':'neg'}">${gs(v)}</td>`;if(c[3]==='a')return`<td class="a ${v>=1?'pos':'neg'}">${pf(v)}</td>`;if(c[3]==='pt')return`<td class="pt">${pf(v)}</td>`;return`<td class="${c[3]}" style="--p:${Math.min(v,1)*100}">${pf(v)}</td>`}).join('')+'</tr>').join('');
+  $('more').hidden=n<=S.lim;$('more').textContent='Show all ('+n+')';
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.d===S.dim));
+  document.querySelectorAll('#views button').forEach(b=>b.classList.toggle('on',b.dataset.v===S.view));
+  $('note').textContent=(S.dim==='cour'?'Note: the Customer filter does not affect the Courier table. ':'')+(S.view==='tgt'?'Gap = delivery rate − target, in percentage points; Achievement = delivery rate ÷ target. Targets come from the Target sheet and exist per Hub and Area only (no target shows —). The All target applies when Ship Mode is not filtered. ':'')+(S.view==='d12'?'D1/D2 rates use classified shipments only (those with a Departure Time). D2 = Signed after 1 to 2 days; "Over 2 days" = the rest of the shipments marked 0. ':'Out for delivery = shipments in the Delivery sheet; Signed = shipments in the Signed (Collected) sheet; rate = Signed ÷ out for delivery (also split by Local and Fulfillment Delivery). ')+'Rows: '+fmt(n);
+  drawCharts();
+}
+['fArea','fHub','fShip','fCust','fFrom','fTo'].forEach(i=>$(i).addEventListener('change',()=>{if(i==='fArea')fillHubs();S.lim=100;render()}));
+$('tabs').onclick=e=>{if(e.target.dataset.d){S.dim=e.target.dataset.d;S.lim=100;render()}};
+$('views').onclick=e=>{if(e.target.dataset.v){S.view=e.target.dataset.v;S.sort=S.view==='rate'?'del':S.view==='tgt'?'ga':'col';S.dir=S.view==='tgt'?1:-1;render()}};
+$('thead').onclick=e=>{const s=e.target.dataset.s;if(s){S.dir=S.sort===s?-S.dir:-1;S.sort=s;render()}};
+$('q').oninput=e=>{S.q=e.target.value;render()};
+$('more').onclick=()=>{S.lim=1e9;render()};
+//<<LOGIC
+const sv=v=>v==null?'':String(v).trim();
+function parseCSV(t){
+  if(t.charCodeAt(0)===0xFEFF)t=t.slice(1);
+  const nl=t.indexOf('\n');const first=t.slice(0,nl>0?nl:t.length);
+  const dl=[',',';','\t'].map(c=>[c,first.split(c).length]).sort((a,b)=>b[1]-a[1])[0][0];
+  const rows=[];let r=[],f='',q=false;
+  for(let i=0;i<t.length;i++){const c=t[i];
+    if(q){if(c==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
+    else if(c==='"')q=true;
+    else if(c===dl){r.push(f);f=''}
+    else if(c==='\n'||c==='\r'){if(c==='\r'&&t[i+1]==='\n')i++;r.push(f);f='';rows.push(r);r=[]}
+    else f+=c}
+  if(f!==''||r.length){r.push(f);rows.push(r)}
+  return rows;
+}
+function dayOf(v){
+  if(v==null||v==='')return null;
+  if(v instanceof Date)return v.toISOString().slice(0,10);
+  if(typeof v==='number'){return v<20000?null:new Date(Math.round((v-25569)*864e5)).toISOString().slice(0,10)}
+  const s=String(v).trim();
+  if(/^\d{4}-\d\d-\d\d[T ]\d\d:\d\d(:\d\d(\.\d+)?)?(Z|[+-]\d\d:?\d\d)$/.test(s)){const d=new Date(s.replace(' ','T'));if(!isNaN(d))return new Intl.DateTimeFormat('en-CA',{timeZone:(typeof CONFIG!=='undefined'&&CONFIG.TZ)||'Africa/Cairo',year:'numeric',month:'2-digit',day:'2-digit'}).format(d)}
+  let m=s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+  if(m)return m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0');
+  m=s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+  if(m){let d=+m[1],mo=+m[2];if(mo>12){const x=d;d=mo;mo=x}return m[3]+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0')}
+  if(/^\d+(\.\d+)?$/.test(s))return dayOf(parseFloat(s));
+  return null;
+}
+function isTargetSheet(sh){const a=sh.aoa.slice(0,6);if(/target/i.test(sh.name))return true;if(a[0]&&a[0].some(c=>/waybill/i.test(sv(c))))return false;const has=re=>a.some(r=>r.some(c=>re.test(sv(c).replace(/\s+/g,' '))));return has(/^hub$/i)&&has(/target/i)}
+function parseTarget(a){
+  const nrm=v=>sv(v).replace(/\s+/g,' ').toLowerCase();
+  let hr=-1;for(let i=0;i<Math.min(a.length,6);i++){if(a[i].some(c=>nrm(c)==='hub')){hr=i;break}}
+  if(hr<0)return null;
+  const H=a[hr].map(nrm),iH=H.indexOf('hub'),iA2=H.indexOf('area',iH+1);
+  const num=v=>{if(v==null||v==='')return null;const pct=typeof v==='string'&&v.includes('%');const s=typeof v==='number'?v:parseFloat(String(v).replace('%','').replace(',','.'));if(isNaN(s))return null;return pct||s>1.5?s/100:s};
+  const out={hubs:{},areas:{},total:null,nh:0,na:0};
+  for(let r=hr+1;r<a.length;r++){const x=a[r];
+    const h=sv(x[iH]);
+    if(h){const t1=num(x[iH+1]),t2=num(x[iH+2]);if(t1!=null||t2!=null){out.hubs[h.toLowerCase()]=[t1,t2];out.nh++}}
+    if(iA2>=0){const ar=sv(x[iA2]);if(ar){const t1=num(x[iA2+1]),t2=num(x[iA2+2]);if(/^total$/i.test(ar))out.total=[t1,t2];else{out.areas[ar]=[t1,t2];out.na++}}}
+  }
+  return out.nh||out.na?out:null;
+}
+const norm=s=>sv(s).replace(/[\u00a0\s]+/g,' ').trim().toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/ +/g,' ').trim();
+const HALIAS={waybill:['waybill no','waybill','waybill number','waybill nr','awb','awb no','tracking no','tracking number'],hub:['hub','site','station'],delT:['delivery time','out for delivery time','delivery date','delivery datetime','delivery date time','dispatch time'],colT:['collection time','collected time','collection date','signed time','sign time','signed date','signing time','signature time'],ship:['ship mode','shipmode','shipping mode'],cust:['customer','customer name','merchant','shipper'],courier:['delivery courier','courier','courier name','driver'],area:['area'],type:['type','status'],dt:['d1d2 time'],dy:['d1d2 type']};
+function findHeader(a){
+  for(let r=0;r<Math.min(a.length,15);r++){
+    const H=(a[r]||[]).map(norm),map={};
+    for(const k in HALIAS){const i=H.findIndex(h=>HALIAS[k].includes(h));if(i>=0)map[k]=i}
+    if(map.waybill!=null&&Object.keys(map).length>=4)return{row:r,H,map};
+  }
+  return null;
+}
+function buildFromSheets(sheets){
+  const del=[],col=[],seenD=new Set(),seenC=new Set(),missing=[],info=[];let dup=0,bad=0,tg=null;
+  for(const sh of sheets){
+    const a=sh.aoa;if(!a||!a.length)continue;
+    if(isTargetSheet(sh)){const t=parseTarget(a);if(t)tg=t;else missing.push(sh.name+' (could not read targets: need Hub and Target columns)');continue}
+    const hf=findHeader(a);
+    if(!hf){info.push(sh.name+': skipped (no header row with Waybill / Hub / time columns found)');continue}
+    const H=hf.H,ix=k=>hf.map[k]??-1,nm=norm(sh.name);
+    let isCol=ix('colT')>=0,isDel=ix('delT')>=0;
+    if(isCol&&isDel){if(/deliver|out/.test(nm)&&!/collect|sign/.test(nm))isCol=false;else isDel=false}
+    if(!isCol&&!isDel){
+      const tcol=H.findIndex(h=>/ (time|date)$|^(time|date)/.test(h));
+      if(tcol>=0&&/collect|sign/.test(nm)){isCol=true;hf.map.colT=tcol}
+      else if(tcol>=0&&/deliver|out/.test(nm)){isDel=true;hf.map.delT=tcol}
+    }
+    if(!isCol&&!isDel){info.push(sh.name+': skipped (no delivery-time or signed-time column; headers: '+a[hf.row].map(sv).filter(Boolean).slice(0,8).join(', ')+')');continue}
+    const need=[['waybill','Waybill No.'],['hub','Hub'],[isDel?'delT':'colT',isDel?'Delivery time':'Collection time'],['ship','Ship Mode'],['cust','Customer'],['courier','Delivery Courier']];
+    const miss=need.filter(n=>ix(n[0])<0).map(n=>n[1]);
+    if(miss.length){missing.push(sh.name+' (missing: '+miss.join(', ')+')');info.push(sh.name+': skipped (missing '+miss.join(', ')+')');continue}
+    const iW=ix('waybill'),iH=ix('hub'),iT=ix(isDel?'delT':'colT'),iS=ix('ship'),iC=ix('cust'),iK=ix('courier'),iA=ix('area'),iTy=ix('type'),iDT=ix('dt'),iDY=ix('dy');
+    const r0=hf.row+1,n0=(isDel?del:col).length;
+    const seen=isDel?seenD:seenC;
+    for(let r=r0;r<a.length;r++){
+      const x=a[r],w=sv(x[iW]);if(!w)continue;
+      if(isCol&&iTy>=0&&!/^(collected|signed|sign|collect|delivered)$/i.test(sv(x[iTy]).trim()))continue;
+      if(seen.has(w)){dup++;continue}seen.add(w);
+      const day=dayOf(x[iT]);if(!day){bad++;continue}
+      const rec=[day,sv(x[iH])||'(blank)',sv(x[iS])==='Fulfillment Delivery'?1:0,sv(x[iC])||'(blank)',(x[iK]==null||x[iK]===''?'(blank)':String(x[iK])),iA>=0?sv(x[iA]):''];
+      if(isCol){
+        const ty=iDY>=0?sv(x[iDY]):'';let c='u';
+        if(ty==='D1')c='d1';else if(ty==='D2')c='d2';else if(ty==='0'){const t=iDT>=0?parseFloat(x[iDT]):NaN;if(t<2)c='d2';else if(t>=2)c='d3'}
+        rec.push(c);col.push(rec);
+      }else del.push(rec);
+    }
+    info.push(sh.name+' → '+(isDel?'out for delivery':'Signed')+': '+fmt((isDel?del:col).length-n0)+' rows');
+  }
+  if(!del.length&&!col.length&&tg)return{targetsOnly:true,targets:tg};
+  if(!del.length&&!col.length)return{error:'No Delivery or Signed data found. '+(missing.length?'Problems: '+missing.join('; ')+'.':'Make sure the file has a sheet with "Delivery time" and one with "Collection time" (or "Signed time") columns.')+(info.length?' Sheets seen: '+info.join('; ')+'.':'')};
+  const all=del.concat(col);
+  const days=[...new Set(all.map(r=>r[0]))].sort(),hubs=[...new Set(all.map(r=>r[1]))].sort();
+  const customers=[...new Set(all.map(r=>r[3]))].sort(),couriers=[...new Set(all.map(r=>r[4]))].sort();
+  const di=new Map(days.map((d,i)=>[d,i])),hi=new Map(hubs.map((h,i)=>[h,i]));
+  const ha={};for(const r of all)if(r[5]&&!ha[r[1]])ha[r[1]]=r[5];
+  function cube(ki,names){
+    const ni=new Map(names.map((n,i)=>[n,i])),m=new Map();
+    const get=r=>{const a=di.get(r[0]),b=hi.get(r[1]),c=ni.get(r[ki]),k=a+'|'+b+'|'+r[2]+'|'+c;let o=m.get(k);if(!o){o=[a,b,r[2],c,0,0,0,0,0,0];m.set(k,o)}return o};
+    for(const r of del)get(r)[4]++;
+    for(const r of col){const o=get(r);o[5]++;o[{d1:6,d2:7,d3:8,u:9}[r[6]]]++}
+    return[...m.values()];
+  }
+  return{data:{days,hubs,hubArea:hubs.map(h=>ha[h]||'Unassigned'),customers,couriers,A:cube(3,customers),B:cube(4,couriers)},targets:tg,stats:{th:tg?tg.nh:0,ta:tg?tg.na:0,del:del.length,col:col.length,dup,bad,missing,info}};
+}
+//>>LOGIC
+
+$('theme').onclick=()=>{const r=document.documentElement,n=r.getAttribute('data-theme')==='dark'?'light':'dark';r.setAttribute('data-theme',n);try{localStorage.setItem('dash-theme',n)}catch(e){}};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtK=v=>v>=1000?(+(v/1000).toFixed(1))+'k':String(Math.round(v));
+const sgn=g=>(g>=0?'+':'−')+Math.abs(g).toFixed(1)+' pp';
+const empty=()=>'<p class="cap">No data for this selection.</p>';
+function nice(v){const p=Math.pow(10,Math.floor(Math.log10(v)));const n=v/p;return[1,1.2,1.6,2,2.4,3,4,5,6,8,10].find(x=>n<=x)*p}
+let CH=null,RK='low',RT=0;
+const tip=document.createElement('div');tip.id='tip';tip.hidden=true;document.body.appendChild(tip);
+function showTip(e,lines){tip.innerHTML=lines.map((l,i)=>i?'<div>'+esc(l)+'</div>':'<b>'+esc(l)+'</b>').join('');tip.hidden=false;const w=tip.offsetWidth,h=tip.offsetHeight;let x=e.clientX+14,y=e.clientY+14;if(x+w>innerWidth-8)x=e.clientX-w-14;if(y+h>innerHeight-8)y=e.clientY-h-14;tip.style.left=Math.max(4,x)+'px';tip.style.top=Math.max(4,y)+'px'}
+const hideTip=()=>{tip.hidden=true};
+document.addEventListener('pointerdown',e=>{if(!e.target.closest||!e.target.closest('.cc svg'))hideTip()});
+function wire(el,sel,fn){el.querySelectorAll(sel).forEach(n=>{const i=+n.dataset.i,show=e=>showTip(e,fn(i));
+  n.addEventListener('pointermove',show);n.addEventListener('pointerdown',show);
+  n.addEventListener('pointerleave',e=>{if(e.pointerType==='mouse')hideTip()});
+  n.addEventListener('focus',()=>{const r=n.getBoundingClientRect();showTip({clientX:r.left+r.width/2,clientY:r.top},fn(i))});
+  n.addEventListener('blur',hideTip)})}
+function trendChart(){
+  const el=$('c-trend'),m=agg(D.A,CH.f,r=>r[0]),days=[...m.keys()].sort((a,b)=>a-b);
+  if(!days.length){el.innerHTML=empty();return}
+  const W=Math.max(300,el.clientWidth||600),H=PR?190:260,L=46,R=44,T=12,B=28,iw=W-L-R,ih=H-T-B;
+  const mx=nice(Math.max(1,...days.map(d=>Math.max(m.get(d).del,m.get(d).col))));
+  const st=iw/days.length,bw=Math.max(3,Math.min(20,st*0.32));
+  const y=v=>T+ih-v/mx*ih,yr=v=>T+ih-Math.min(v,1)*ih;
+  let s=`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Daily out for delivery, Signed and delivery rate">`;
+  for(let k=0;k<=4;k++){const yy=T+ih-k/4*ih;s+=`<line class="gl" x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}"/><text x="${L-6}" y="${yy+4}" text-anchor="end">${fmtK(mx*k/4)}</text><text class="rt" x="${W-R+6}" y="${yy+4}">${k*25}%</text>`}
+  const skip=Math.ceil(days.length/Math.max(1,Math.floor(iw/52)));const pts=[];
+  days.forEach((d,i)=>{const o=m.get(d),cx=L+st*i+st/2;
+    s+=`<rect class="b1" x="${cx-bw-1}" y="${y(o.del)}" width="${bw}" height="${T+ih-y(o.del)}" rx="2"/><rect class="b2" x="${cx+1}" y="${y(o.col)}" width="${bw}" height="${T+ih-y(o.col)}" rx="2"/>`;
+    if(i%skip===0)s+=`<text x="${cx}" y="${H-8}" text-anchor="middle">${esc(dl(d))}</text>`;
+    if(o.del)pts.push([cx,yr(pc(o.col,o.del))])});
+  if(pts.length)s+=`<polyline class="ln" points="${pts.map(p=>p.join(',')).join(' ')}"/>`+pts.map(p=>`<circle class="dt" cx="${p[0]}" cy="${p[1]}" r="3"/>`).join('');
+  days.forEach((d,i)=>{s+=`<rect class="hit" data-i="${i}" x="${L+st*i}" y="${T}" width="${st}" height="${ih}"/>`});
+  el.innerHTML=s+'</svg>';
+  wire(el,'.hit',i=>{const o=m.get(days[i]);return[dl(days[i]),'Out for delivery: '+fmt(o.del),'Signed: '+fmt(o.col),'Delivery rate: '+(o.del?pf(pc(o.col,o.del)):'—')]});
+}
+function hbar(el,items,max,label,ref,lwMax,unit){
+  const vf=unit==='n'?fmt:pf,vw0=unit==='n'?54:44;
+  if(!items.length){el.innerHTML=empty();return}
+  const W=Math.max(300,el.clientWidth||600),sub=items.some(i=>i.sub),rh=sub?44:28,lw=Math.round(Math.min(lwMax||160,W*0.36)),vw=vw0,L=lw+6,R=vw+8,iw=W-L-R,ph=items.length*rh,H=ph+22;
+  const x=v=>L+Math.min(v,max)/max*iw,mc=Math.floor(lw/7.1);
+  let s=`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(label)}">`;
+  for(let k=0;k<=4;k++){const xx=L+k/4*iw;s+=`<line class="gl" x1="${xx}" x2="${xx}" y1="0" y2="${ph}"/><text x="${xx}" y="${ph+15}" text-anchor="middle">${unit==='n'?fmt(max*k/4):Math.round(max*k/4*100)+'%'}</text>`}
+  if(ref!=null&&ref<=max)s+=`<line class="rf" x1="${x(ref)}" x2="${x(ref)}" y1="0" y2="${ph}"/>`;
+  items.forEach((it,i)=>{const cy=i*rh+rh/2,nm=it.label.length>mc?it.label.slice(0,mc-1)+'…':it.label;
+    s+=`<g class="rowhit" data-i="${i}" tabindex="0" role="button" aria-label="${esc(it.label)}"><rect class="rbg" x="0" y="${i*rh+1}" width="${W}" height="${rh-2}" rx="4"/><text class="lbl" x="${lw}" y="${cy+(sub?-3:4)}" text-anchor="end">${esc(nm)}</text>`
+    +(sub?`<text class="sm" x="${lw}" y="${cy+12}" text-anchor="end">${esc(it.sub)}</text>`:'')
+    +`<rect class="hb" x="${L}" y="${cy-7}" width="${Math.max(1,x(it.value)-L)}" height="14" rx="3"/>`
+    +(it.target!=null?`<line class="tg" x1="${x(it.target)}" x2="${x(it.target)}" y1="${cy-11}" y2="${cy+11}"/>`:'')
+    +`<text class="val" x="${W-R+8}" y="${cy+4}">${vf(it.value)}</text></g>`});
+  el.innerHTML=s+'</svg>';
+  wire(el,'.rowhit',i=>items[i].lines);
+  el.querySelectorAll('.rowhit').forEach(n=>{const it=items[+n.dataset.i];n.addEventListener('click',it.click);n.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();it.click()}})});
+}
+function itemLines(name,value,target,extra){const a=[name,'Delivery rate: '+pf(value)];if(extra)a.push(extra);if(target!=null)a.push('Target: '+pf(target)+' · gap '+sgn((value-target)*100)+' · achievement '+pf(value/target));return a}
+function pick(name){
+  const d=CH.dim;
+  if(d==='hub'){const i=D.hubs.indexOf(name);if(i>=0)$('fHub').value=String(i)}
+  else if(d==='area'){$('fArea').value=name;fillHubs()}
+  else if(d==='cust'){const i=D.customers.indexOf(name);if(i>=0)$('fCust').value=String(i)}
+  else{S.q=name;$('q').value=name}
+  S.lim=100;render();
+}
+function rankChart(){
+  const el=$('c-rank');
+  document.querySelectorAll('#rk button').forEach(b=>b.classList.toggle('on',b.dataset.r===RK));
+  const rate=o=>pc(o.col,o.del);
+  if(RK==='vol'){
+    const top=CH.all.filter(o=>o.col>0).sort((a,b)=>b.col-a.col||b.del-a.del).slice(0,10);
+    $('rk-title').textContent='Largest Signed volume by '+DIMS[CH.dim];
+    $('rk-cap').textContent='Ranked by the number of Signed shipments, not by delivery rate. The rate is shown under each name. Click a bar to filter.';
+    const items=top.map(o=>({label:o.name,value:o.col,target:null,sub:(o.del?pf(rate(o))+' delivery rate · '+fmt(o.del)+' out':'No shipments out in this period'),click:()=>pick(o.name),lines:[o.name,'Signed: '+fmt(o.col),'Out for delivery: '+fmt(o.del),'Delivery rate: '+(o.del?pf(rate(o)):'n/a')]}));
+    hbar(el,items,nice(Math.max(1,...items.map(i=>i.value))),'Signed volume ranking',null,null,'n');
+    return;
+  }
+  let pool=CH.all.filter(o=>o.del>0);const big=pool.filter(o=>o.del>=50);if(big.length>=5)pool=big;
+  if(RK==='low')pool.sort((a,b)=>rate(a)-rate(b));else pool.sort((a,b)=>rate(b)-rate(a));
+  pool=pool.slice(0,10);
+  $('rk-title').textContent={low:'Lowest',high:'Highest'}[RK]+' delivery rate by '+DIMS[CH.dim];
+  $('rk-cap').textContent='Entities with at least 50 shipments out. Click a bar to filter.'+(pool.some(o=>CH.tfor(o,0)!=null)?' Orange tick = target.':'');
+  const items=pool.map(o=>{const t=CH.tfor(o,0);return{label:o.name,value:rate(o),target:t,click:()=>pick(o.name),lines:itemLines(o.name,rate(o),t,fmt(o.col)+' signed of '+fmt(o.del)+' out')}});
+  const mx=Math.min(1,Math.max(.2,Math.ceil(Math.max(0,...items.map(i=>Math.max(i.value,i.target||0)))*5)/5));
+  hbar(el,items,mx,'Delivery rate ranking');
+}
+function shipChart(){
+  const t=CH.tot,setShip=v=>()=>{$('fShip').value=v;S.lim=100;render()};
+  const items=[['All',t.col,t.del,CH.tA,''],['Local',t.lc,t.l,CH.tL,'0'],['Fulfillment Delivery',t.fc,t.f,null,'1']].filter(r=>r[2]>0).map(r=>{const v=pc(r[1],r[2]);return{label:r[0],value:v,target:r[3],sub:fmt(r[1])+' of '+fmt(r[2])+' out',click:setShip(r[4]),lines:itemLines(r[0],v,r[3],fmt(r[1])+' signed of '+fmt(r[2])+' out')}});
+  const mx=Math.min(1,Math.max(.2,Math.ceil(Math.max(0,...items.map(i=>Math.max(i.value,i.target||0)))*5)/5));
+  hbar($('c-ship'),items,mx,'Delivery rate by ship mode');
+}
+function donutChart(){
+  const el=$('c-d12'),t=CH.tot;
+  const P=[['D1',t.d1,'var(--acc)',0],['D2',t.d2,'var(--c2)',0],['Over 2 days',t.d3,'var(--warn)',0],['Unclassified',t.u,'var(--c3)',1]];
+  const tot=P.reduce((a,p)=>a+p[1],0),cl=t.d1+t.d2+t.d3;
+  if(!tot){el.innerHTML=empty();return}
+  const Z=170,c=Z/2,r1=78,r0=50;let a=-Math.PI/2,s=`<svg viewBox="0 0 ${Z} ${Z}" width="${Z}" height="${Z}" role="img" aria-label="Signed shipments by speed">`;
+  P.forEach((p,i)=>{if(!p[1])return;const d=Math.min(p[1]/tot*2*Math.PI,2*Math.PI-1e-4),b=a+d,pt=(r,g)=>[c+r*Math.cos(g),c+r*Math.sin(g)];
+    const[x0,y0]=pt(r1,a),[x1,y1]=pt(r1,b),[x2,y2]=pt(r0,b),[x3,y3]=pt(r0,a),lg=d>Math.PI?1:0;
+    s+=`<path class="seg2" data-i="${i}" d="M${x0} ${y0}A${r1} ${r1} 0 ${lg} 1 ${x1} ${y1}L${x2} ${y2}A${r0} ${r0} 0 ${lg} 0 ${x3} ${y3}Z" fill="${p[2]}"/>`;a=b});
+  s+=`<text class="big" x="${c}" y="${c+2}" text-anchor="middle">${fmt(tot)}</text><text x="${c}" y="${c+18}" text-anchor="middle">Signed</text></svg>`;
+  el.innerHTML=`<div class="dn">${s}<ul class="lg">`+P.map(p=>`<li><i class="sw" style="background:${p[2]}"></i><span>${p[0]}</span><b>${fmt(p[1])}</b><em>${p[3]?'':pf(pc(p[1],cl))}</em></li>`).join('')+'</ul></div>';
+  wire(el,'.seg2',i=>[P[i][0],fmt(P[i][1])+' shipments',P[i][3]?pf(pc(P[i][1],tot))+' of all Signed':pf(pc(P[i][1],cl))+' of classified']);
+}
+const CR={m:'rate',o:'vol'};
+const CRM={rate:'Delivery rate',d1:'D1 rate',d12:'D1 + D2 rate'};
+function courierChart(){
+  const el=$('c-cour'),f=CH.f,prn=!!(PR&&PR.mode==='dash');
+  document.querySelectorAll('#cr-m button').forEach(b=>b.classList.toggle('on',b.dataset.m===CR.m));
+  document.querySelectorAll('#cr-o button').forEach(b=>b.classList.toggle('on',b.dataset.o===CR.o));
+  const m=agg(D.B,f,r=>D.couriers[r[3]]),all=[...m.values()];
+  const cls=o=>o.d1+o.d2+o.d3;
+  const num=o=>CR.m==='rate'?o.col:CR.m==='d1'?o.d1:o.d1+o.d2,den=o=>CR.m==='rate'?o.del:cls(o);
+  const val=o=>pc(num(o),den(o));
+  const sumN=all.reduce((a,o)=>a+num(o),0),sumD=all.reduce((a,o)=>a+den(o),0),avg=sumD?sumN/sumD:null;
+  const pool=all.filter(o=>den(o)>0),skipped=all.length-pool.length;
+  if(CR.o==='low')pool.sort((a,b)=>val(a)-val(b));else if(CR.o==='high')pool.sort((a,b)=>val(b)-val(a));else pool.sort((a,b)=>b.del-a.del);
+  const top=prn?pool.slice(0,25):pool;
+  $('cr-cap').textContent='All '+pool.length+' couriers are shown'+(prn?' (the printed version lists the first 25)':' (scroll the chart)')+(skipped?'; '+skipped+' more have no '+(CR.m==='rate'?'shipments out for delivery':'classified Signed shipments')+' in this selection, so no percentage exists':'')+'. '+(avg!=null?'Dashed line = average of all couriers ('+pf(avg)+'). ':'')+'Click a bar to open the courier in the table.'+(f.cust!==''?' The Customer filter does not apply here.':'');
+  if(!top.length){el.innerHTML=empty();return}
+  const hm=new Map(),names=new Set(top.map(o=>o.name));
+  for(const r of D.B){if(r[0]<f.from||r[0]>f.to)continue;if(f.hub!==''&&r[1]!=f.hub)continue;if(f.area&&D.hubArea[r[1]]!==f.area)continue;if(f.ship!==''&&r[2]!=f.ship)continue;const nm=D.couriers[r[3]];if(!names.has(nm))continue;let h=hm.get(nm);if(!h){h=new Map();hm.set(nm,h)}h.set(r[1],(h.get(r[1])||0)+r[4]+r[5])}
+  const hubOf=nm=>{const h=hm.get(nm);if(!h)return'';let b=-1,bv=-1;for(const[k,v]of h)if(v>bv){bv=v;b=k}return D.hubs[b]||''};
+  const items=top.map(o=>{const v=val(o),hub=hubOf(o.name),ln=[o.name,CRM[CR.m]+': '+pf(v),fmt(num(o))+' of '+fmt(den(o))+(CR.m==='rate'?' out for delivery':' classified signed')];
+    if(hub)ln.push('Main hub: '+hub);if(CR.m==='rate'&&!o.col)ln.push('None of this courier\'s shipments appear in the Signed sheet');if(avg!=null)ln.push('vs average: '+sgn((v-avg)*100));ln.push('Click to open in the table');
+    return{label:o.name,value:v,target:null,sub:top.length<=15?(hub?hub+' · ':'')+fmt(o.col)+' of '+fmt(o.del)+' out':null,lines:ln,click:()=>{S.dim='cour';S.q=o.name;$('q').value=o.name;S.lim=100;render();$('tabs').scrollIntoView({behavior:'smooth',block:'center'})}}});
+  const mx=Math.min(1,Math.max(.2,Math.ceil(Math.max(0,avg||0,...items.map(i=>i.value))*5)/5));
+  const draw=()=>hbar(el,items,mx,'Courier '+CRM[CR.m]+' ranking',avg,230);
+  draw();if(el.scrollWidth>el.clientWidth+1)draw();
+}
+$('cr-m').onclick=e=>{if(e.target.dataset.m){CR.m=e.target.dataset.m;courierChart()}};
+$('cr-o').onclick=e=>{if(e.target.dataset.o){CR.o=e.target.dataset.o;courierChart()}};
+function drawCharts(){if(!CH)return;trendChart();rankChart();donutChart();shipChart();courierChart()}
+$('rk').onclick=e=>{if(e.target.dataset.r){RK=e.target.dataset.r;rankChart()}};
+window.addEventListener('resize',()=>{clearTimeout(RT);RT=setTimeout(drawCharts,150)});
+
+let PR=null;
+function printPrepare(mode){
+  if(PR)return;
+  const root=document.documentElement,sel=i=>$(i).selectedOptions[0].text;
+  PR={theme:root.getAttribute('data-theme'),lim:S.lim,mode};
+  root.setAttribute('data-theme','light');root.setAttribute('data-print',mode);root.classList.add('printing');
+  if(mode==='table')S.lim=1e9;
+  render();
+  const f=F(),parts=['Area: '+sel('fArea'),'Hub: '+sel('fHub'),'Ship Mode: '+sel('fShip'),'Customer: '+sel('fCust'),'Days: '+dl(f.from)+' to '+dl(f.to)];
+  if(S.q)parts.push('Search: '+S.q);
+  $('printMeta').textContent='Filters — '+parts.join(' · ')+'  |  Table: '+DIMS[S.dim]+' ('+VIEWS[S.view]+', '+(mode==='table'?'all ':'first ')+Math.min(LAST?LAST.rows.length:0,mode==='table'?1e9:S.lim)+' rows)  |  Generated '+new Date().toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short'});
+}
+function printRestore(){
+  if(!PR)return;
+  const root=document.documentElement;
+  root.setAttribute('data-theme',PR.theme||'light');root.removeAttribute('data-print');root.classList.remove('printing');
+  S.lim=PR.lim;PR=null;render();
+}
+function doPrint(mode){printPrepare(mode);setTimeout(()=>{try{window.print()}finally{printRestore()}},60)}
+window.addEventListener('beforeprint',()=>printPrepare('dash'));
+window.addEventListener('afterprint',printRestore);
+$('pdfMenu').onclick=e=>{const m=e.target.dataset.p;if(m){$('pdfMenu').hidden=true;doPrint(m)}};
+const defMsg=()=>{const a=D0.days[0].split('-'),b=D0.days[D0.days.length-1].split('-');return'Showing DEMO data ('+MON[+a[1]-1]+' '+(+a[2])+' – '+MON[+b[1]-1]+' '+(+b[2])+'). Use “Refresh data now” to load the live data.'};
+$('status').textContent=defMsg();
+let XL=null;
+/* Streaming .xlsx reader: SheetJS has to hold a whole worksheet's XML in one string, and browsers cap a string at ~512 MB.
+   Workbooks whose cells carry long formulas (e.g. the Area IFS formula, ~2.7 KB per row) exceed that, so the sheet came back empty.
+   This reader decompresses the file as a stream, drops the formulas and keeps only the cached values. */
+const xUn=s=>s.indexOf('&')<0?s:s.replace(/&(lt|gt|amp|quot|apos|#\d+|#x[0-9a-fA-F]+);/g,(m,e)=>e==='lt'?'<':e==='gt'?'>':e==='amp'?'&':e==='quot'?'"':e==='apos'?"'":e[1]==='x'?String.fromCodePoint(parseInt(e.slice(2),16)):String.fromCodePoint(+e.slice(1)));
+async function readXlsxStream(file,prog){
+  const buf=new Uint8Array(await file.arrayBuffer()),dv=new DataView(buf.buffer),td=new TextDecoder();
+  let e=-1;for(let i=buf.length-22;i>=Math.max(0,buf.length-70000);i--)if(dv.getUint32(i,true)===0x06054b50){e=i;break}
+  if(e<0)throw new Error('not a zip file');
+  const n=dv.getUint16(e+10,true);let p=dv.getUint32(e+16,true);const ent={};
+  for(let k=0;k<n&&dv.getUint32(p,true)===0x02014b50;k++){
+    const m=dv.getUint16(p+10,true),cs=dv.getUint32(p+20,true),nl=dv.getUint16(p+28,true),xl=dv.getUint16(p+30,true),cl=dv.getUint16(p+32,true),off=dv.getUint32(p+42,true);
+    ent[td.decode(buf.subarray(p+46,p+46+nl))]={m,cs,off};p+=46+nl+xl+cl;
+  }
+  async function*chunks(name){
+    const z=ent[name];if(!z)throw new Error('missing '+name);if(z.cs===0xFFFFFFFF)throw new Error('zip64');
+    const st=z.off+30+dv.getUint16(z.off+26,true)+dv.getUint16(z.off+28,true),data=buf.subarray(st,st+z.cs);
+    if(z.m===0){yield td.decode(data);return}
+    if(typeof DecompressionStream==='undefined')throw new Error('no DecompressionStream');
+    const rd=new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader(),dec=new TextDecoder();
+    for(;;){const r=await rd.read();if(r.done)break;yield dec.decode(r.value,{stream:true})}
+  }
+  const text=async name=>{let s='';for await(const c of chunks(name))s+=c;return s};
+  const ss=[];
+  if(ent['xl/sharedStrings.xml']){
+    let b='';
+    for await(const c of chunks('xl/sharedStrings.xml')){
+      b+=c;let a=0,i;
+      while((i=b.indexOf('</si>',a))>=0){
+        const si=b.slice(b.lastIndexOf('<si',i),i).replace(/<rPh\b[\s\S]*?<\/rPh>/g,'');
+        let t='',m;const re=/<t\b[^>]*>([\s\S]*?)<\/t>/g;while((m=re.exec(si)))t+=m[1];
+        ss.push(xUn(t));a=i+5;
+      }
+      b=b.slice(a);
+    }
+  }
+  const wbx=await text('xl/workbook.xml'),rels=await text('xl/_rels/workbook.xml.rels');
+  const rt={};for(const m of rels.matchAll(/<Relationship\b[^>]*>/g)){const id=/\bId="([^"]*)"/.exec(m[0]),tg=/\bTarget="([^"]*)"/.exec(m[0]);if(id&&tg)rt[id[1]]=tg[1]}
+  const sheets=[];
+  for(const m of wbx.matchAll(/<sheet\b[^>]*>/g)){
+    const nm=/\bname="([^"]*)"/.exec(m[0]),rid=/\br:id="([^"]*)"/.exec(m[0]);if(!nm||!rid||!rt[rid[1]])continue;
+    let path=rt[rid[1]];path=path[0]==='/'?path.slice(1):'xl/'+path;
+    const aoa=[];let b='',cnt=0;
+    const colIdx=s=>{let x=0;for(let i=0;i<s.length;i++)x=x*26+s.charCodeAt(i)-64;return x-1};
+    for await(const c of chunks(path)){
+      b+=c;let a=0,i;
+      while((i=b.indexOf('</row>',a))>=0){
+        const j=b.lastIndexOf('<row',i);a=i+6;if(j<0)continue;
+        const rx=b.slice(j,i).replace(/<f\b[^>]*\/>|<f\b[^>]*>[\s\S]*?<\/f>/g,''),rn=/^<row\b[^>]*?\br="(\d+)"/.exec(rx);
+        const arr=[];let k,cm;const re=/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;
+        while((cm=re.exec(rx))){
+          if(cm[2]==null)continue;
+          const at=cm[1],rr=/\br="([A-Z]+)\d+"/.exec(at),tt=/\bt="([^"]*)"/.exec(at),ty=tt?tt[1]:'n',body=cm[2];
+          let v=null;
+          if(ty==='inlineStr'){let t='',q;const r2=/<t\b[^>]*>([\s\S]*?)<\/t>/g;while((q=r2.exec(body)))t+=q[1];v=xUn(t)}
+          else{const vm=/<v>([\s\S]*?)<\/v>/.exec(body);if(vm){const s=vm[1];v=ty==='s'?ss[+s]:ty==='str'||ty==='d'?xUn(s):ty==='b'?s==='1':ty==='e'?null:parseFloat(s)}}
+          if(v==null||v==='')continue;
+          k=rr?colIdx(rr[1]):arr.length;arr[k]=v;
+        }
+        const r=rn?+rn[1]-1:aoa.length;aoa[r]=arr;
+        if(++cnt%20000===0){prog&&prog(nm[1]+': '+cnt.toLocaleString('en-US')+' rows read …');await new Promise(r=>setTimeout(r))}
+      }
+      b=b.slice(a);
+    }
+    for(let r=0;r<aoa.length;r++)if(!aoa[r])aoa[r]=[];
+    sheets.push({name:xUn(nm[1]),aoa});
+  }
+  return sheets;
+}
+function loadXL(){
+  if(window.XLSX){XL=window.XLSX;return Promise.resolve(true)}
+  const srcs=['xlsx.full.min.js','https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'];
+  return new Promise(res=>{let i=0;(function next(){
+    if(window.XLSX||i>=srcs.length){XL=window.XLSX||null;return res(!!XL)}
+    const s=document.createElement('script');s.src=srcs[i++];s.onload=next;s.onerror=next;document.head.appendChild(s)})()});
+}
+const say=(t,err)=>{$('status').textContent=t;$('status').style.color=err?'var(--warn)':'var(--mut)'};
+$('upBtn').onclick=()=>$('file').click();
+$('file').onchange=async e=>{
+  const files=[...e.target.files];e.target.value='';if(!files.length)return;
+  say('Reading '+files.map(f=>f.name).join(', ')+' …');
+  await new Promise(r=>setTimeout(r,40));
+  try{
+    const sheets=[];
+    for(const f of files){
+      const ext=f.name.split('.').pop().toLowerCase();
+      if(ext==='csv'||ext==='txt'){sheets.push({name:f.name,aoa:parseCSV(new TextDecoder('utf-8').decode(await f.arrayBuffer()))})}
+      else{
+        let got=null;
+        if(/^(xlsx|xlsm)$/.test(ext)){try{got=await readXlsxStream(f,say)}catch(err){console.warn('Streaming reader failed, falling back to SheetJS:',err);got=null}}
+        if(got){sheets.push(...got);continue}
+        if(!await loadXL())throw new Error('The Excel reader (SheetJS) could not be loaded. Connect to the internet once, or save xlsx.full.min.js in the same folder as this page. CSV files work without it.');
+        const wb=XL.read(new Uint8Array(await f.arrayBuffer()),{type:'array'});
+        for(const n of wb.SheetNames)sheets.push({name:n,aoa:XL.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true,defval:null})});
+      }
+    }
+    const r=buildFromSheets(sheets);
+    if(r.error)throw new Error(r.error);
+    if(r.targetsOnly){TG=r.targets;META.tg={name:files.map(f=>f.name).join(', '),at:Date.now()};render();$('reset').hidden=false;persist();say('Targets updated from '+files.map(f=>f.name).join(', ')+': '+r.targets.nh+' hubs, '+r.targets.na+' areas.');return}
+    D=r.data;if(r.targets){TG=r.targets;META.tg={name:files.map(f=>f.name).join(', '),at:Date.now()}}META.demo=false;META.src='manual';META.name=files.map(f=>f.name).join(', ');META.at=Date.now();initUI();render();$('reset').hidden=false;persist();
+    const s=r.stats;
+    say('Loaded '+fmt(s.del)+' out-for-delivery and '+fmt(s.col)+' Signed shipments ('+dl(0)+' to '+dl(D.days.length-1)+') from '+files.map(f=>f.name).join(', ')+'.'+(s.dup?' Duplicate waybills removed: '+fmt(s.dup)+'.':'')+(s.bad?' Rows skipped for an unreadable date: '+fmt(s.bad)+'.':'')+(s.missing.length?' Skipped: '+s.missing.join('; ')+'.':'')+(!s.del||!s.col?' Note: only one of the two datasets was found. Sheets read: '+(s.info.join('; ')||'none')+'.':'')+(r.targets?' Targets loaded: '+s.th+' hubs, '+s.ta+' areas.':' No Target sheet found, so the previous targets were kept.'));
+  }catch(err){say(err.message,1)}
+};
+$('reset').onclick=()=>{D=D0;TG=D0.T||{hubs:{},areas:{},total:null};META={demo:true};try{sessionStorage.removeItem('dash-data')}catch(_){}initUI();render();$('reset').hidden=true;say(defMsg())};
+$('expBtn').onclick=e=>{e.stopPropagation();$('pdfMenu').hidden=true;$('expMenu').hidden=!$('expMenu').hidden};
+$('pdfBtn').onclick=e=>{e.stopPropagation();$('expMenu').hidden=true;$('pdfMenu').hidden=!$('pdfMenu').hidden};
+document.addEventListener('click',()=>{$('expMenu').hidden=true;$('pdfMenu').hidden=true});
+$('expMenu').onclick=e=>{if(e.target.dataset.k)exportData(e.target.dataset.k)};
+const qv=v=>'"'+String(v).replace(/"/g,'""')+'"';
+const cellCsv=c=>!c||c.v==null?'':c.k==='s'?qv(c.v):c.k==='n'?String(Math.round(c.v)):c.k==='p'?(c.v*100).toFixed(1)+'%':c.v.toFixed(1);
+const cellX=c=>c.k==='s'?{v:c.v,t:'s'}:{v:c.v,t:'n',z:{n:'#,##0',p:'0.0%',g:'+0.0;-0.0;0.0'}[c.k]};
+function dlCsv(lines,name){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'}));a.download=name;document.body.appendChild(a);a.click();a.remove()}
+function tableWs(L,head,body){
+  const ws=XL.utils.aoa_to_sheet([head].concat(body));
+  L.C.forEach((c,j)=>{for(let r=1;r<=body.length;r++){const a=XL.utils.encode_cell({r,c:j+1});if(ws[a])ws[a].z=c[3]==='n'?'#,##0':c[3]==='g'?'+0.0;-0.0;0.0':'0.0%'}});
+  ws['!cols']=head.map((h,j)=>({wch:j?Math.max(12,h.length+3):32}));
+  return ws;
+}
+function tableLines(L,head,body){
+  return[head.map(qv).join(',')].concat(body.map(r=>[qv(r[0])].concat(r.slice(1).map((v,j)=>v==null?'':L.C[j][3]==='n'?Math.round(v):L.C[j][3]==='g'?v.toFixed(1):(v*100).toFixed(1)+'%')).join(',')));
+}
+function hubModel(f){
+  const sel=i=>$(i).selectedOptions[0].text;
+  const isHub=f.hub!=='',isArea=!isHub&&f.area!=='',scope=isHub?'Hub':isArea?'Area':'Network';
+  const hub=isHub?D.hubs[+f.hub]:isArea?f.area:'All hubs',area=isHub?D.hubArea[+f.hub]:isArea?f.area:'All';
+  const hm=agg(D.A,f,r=>D.hubs[r[1]]);
+  const s=v=>({v:v==null?'':String(v),k:'s'}),n=v=>({v,k:'n'});
+  const rt=(a,b)=>b>0?a/b:null;
+  const R=(v,k)=>v==null||!isFinite(v)?s('n/a'):{v,k};
+  const one=(rows,ff)=>[...agg(rows,ff,()=>'t').values()][0]||Z();
+  const tot=one(D.A,f),both=one(D.A,{...f,ship:''});
+  const cl=tot.d1+tot.d2+tot.d3,tg=f.cust!==''?null:isHub?(TG.hubs[nk(hub)]||null):isArea?(TG.areas[f.area]||null):TG.total;
+  const tA=tg&&f.ship===''?tg[0]:null,tL=tg&&f.ship!=='1'?tg[1]:null,tLb=tg?tg[1]:null;
+  const rA=rt(tot.col,tot.del),rL=rt(tot.lc,tot.l);
+  const tc=t=>t!=null?{v:t,k:'p'}:s('No target');
+  const gc=(r,t)=>{const g=r!=null&&t!=null?gap(r,t):null;return g==null?s('n/a'):{v:g,k:'g'}};
+  const ac=(r,t)=>{const a=r!=null&&t!=null?ach(r,t):null;return a==null?s('n/a'):{v:a,k:'p'}};
+  const sum=[
+    [s(scope+' Complete Report'),s(hub)],[s('Area'),s(area)],...(isHub?[]:[[s('Hubs in report'),n([...hm.values()].filter(o=>o.del+o.col>0).length)]]),[s('Period'),s(dl(f.from)+' to '+dl(f.to))],
+    [s('Ship Mode filter'),s(sel('fShip'))],[s('Customer filter'),s(sel('fCust'))],
+    [s('Generated'),s(new Date().toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short'}))]];
+  if(f.cust!=='')sum.push([s('Note'),s('The Courier table ignores the Customer filter; targets are not shown when a Customer is selected.')]);
+  sum.push([],
+    [s('Overall '+scope+' Performance')],[s('Metric'),s('Value')],
+    [s('Total shipments (out for delivery)'),n(tot.del)],[s('Total Signed'),n(tot.col)],[s('Overall delivery rate (Signed ÷ out)'),R(rA,'p')],[],
+    [s('Target Gap')],[s('Metric'),s('All'),s('Local')],
+    [s('Actual delivery rate'),R(rA,'p'),R(rL,'p')],[s('Target'),tc(tA),tc(tL)],
+    [s('Gap vs target (pp)'),gc(rA,tA),gc(rL,tL)],[s('Achievement rate'),ac(rA,tA),ac(rL,tL)],[],
+    [s('Speed (Signed shipments)')],[s('Metric'),s('Value')],
+    [s('D1 Signed'),n(tot.d1)],[s('D1 rate (of classified Signed)'),R(rt(tot.d1,cl),'p')],
+    [s('D2 Signed'),n(tot.d2)],[s('D2 rate (of classified Signed)'),R(rt(tot.d2,cl),'p')],
+    [s('Over 2 days Signed'),n(tot.d3)],[s('Over 2 days rate (of classified Signed)'),R(rt(tot.d3,cl),'p')],
+    [s('Unclassified Signed (no Departure Time)'),n(tot.u)],[],
+    [s('Ship Mode Breakdown')],[s('Ship Mode'),s('Out for delivery'),s('Signed'),s('Delivery rate'),s('Target'),s('Gap vs target (pp)')],
+    [s('Local'),n(both.l),n(both.lc),R(rt(both.lc,both.l),'p'),tc(tLb),gc(rt(both.lc,both.l),tLb)],
+    [s('Fulfillment Delivery'),n(both.f),n(both.fc),R(rt(both.fc,both.f),'p'),s('No target'),s('n/a')]);
+  const eh=['Out for delivery','Signed','Delivery rate','Local out','Local signed','Local rate','Fulfillment out','Fulfillment signed','Fulfillment rate','D1 Signed','D1 rate (of classified Signed)'];
+  const ent=(m,label,tgt)=>[[s(label)].concat(eh.concat(tgt?['Target (All)','Gap vs target (pp)']:[]).map(s))].concat([...m.values()].filter(o=>o.del+o.col>0).sort((a,b)=>b.del-a.del||b.col-a.col).map(o=>{const c=o.d1+o.d2+o.d3;return[s(o.name),n(o.del),n(o.col),R(rt(o.col,o.del),'p'),n(o.l),n(o.lc),R(rt(o.l?o.lc:0,o.l),'p'),n(o.f),n(o.fc),R(rt(o.fc,o.f),'p'),n(o.d1),R(rt(o.d1,c),'p')].concat(tgt?(()=>{const t=f.cust===''&&f.ship===''?TG.hubs[nk(o.name)]:null,tv=t?t[0]:null;return[tc(tv),gc(rt(o.col,o.del),tv)]})():[])}));
+  return{hub,scope,hubs:isHub?null:ent(hm,'Hub',true),sum,cust:ent(agg(D.A,f,r=>D.customers[r[3]]),'Customer (Merchant)'),cour:ent(agg(D.B,f,r=>D.couriers[r[3]]),'Courier')};
+}
+function loadScripts(srcs,ok){
+  return new Promise(res=>{let i=0;(function next(){
+    if(ok()||i>=srcs.length)return res(!!ok());
+    const s=document.createElement('script');s.src=srcs[i++];s.onload=next;s.onerror=next;document.head.appendChild(s)})()});
+}
+const loadEJ=()=>loadScripts(['exceljs.min.js','https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js'],()=>window.ExcelJS).then(async ok=>{if(ok)await loadScripts(['FileSaver.min.js','https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js'],()=>window.saveAs);return ok});
+function saveBlob(blob,name){
+  if(window.saveAs){window.saveAs(blob,name);return}
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();
+}
+/* Visual template (from the reference report): Calibri 12 bold, centred, thin black borders;
+   orange F79646 = titles, light blue 8EB4E3 = labels/info, dark teal 215968 + white text = column headers */
+const XS={org:'FFF79646',lb:'FF8EB4E3',dk:'FF215968',blk:'FF000000',wh:'FFFFFFFF'};
+const XFMT={n:'#,##0',p:'0.0%',g:'+0.0;-0.0;0.0'};
+function xStyle(c,fill,white){
+  c.font={name:'Calibri',size:12,bold:true,color:{argb:white?XS.wh:XS.blk}};
+  if(fill)c.fill={type:'pattern',pattern:'solid',fgColor:{argb:fill}};
+  const b={style:'thin',color:{argb:XS.blk}};c.border={top:b,left:b,bottom:b,right:b};
+  c.alignment={horizontal:'center',vertical:'middle'};
+}
+function xText(c){return c==null||c.v==null?'':c.k==='n'?Math.round(c.v).toLocaleString('en-US'):c.k==='p'?(c.v*100).toFixed(1)+'%':c.k==='g'?(c.v>0?'+':'')+c.v.toFixed(1):String(c.v)}
+function xFit(ws,rows,skip){
+  const w=[];rows.forEach((r,ri)=>{if(skip&&skip(ri))return;r.forEach((c,j)=>{const l=xText(c).length;if(l>(w[j]||0))w[j]=l})});
+  w.forEach((l,j)=>{ws.getColumn(j+1).width=Math.min(70,Math.max(12,Math.ceil(l*1.2)+4))});
+}
+function xPut(ws,r,c,cell,fill,white){
+  const x=ws.getCell(r,c);
+  if(!cell||cell.v==null||cell.v==='')x.value=null;
+  else{x.value=cell.v;if(cell.k!=='s')x.numFmt=XFMT[cell.k]}
+  xStyle(x,fill,white);return x;
+}
+function xSummary(wb,rows){
+  const ws=wb.addWorksheet('Hub Summary',{views:[{showGridLines:true}]});
+  let blank=false,prev='';const skip=new Set();
+  rows.forEach((r,i)=>{
+    const R=i+1;
+    if(!r.length){blank=true;prev='gap';return}
+    if(i===0){r.forEach((c,j)=>xPut(ws,R,j+1,c,XS.org));prev='top';return}
+    if(!blank){
+      if(r[0].v==='Note'){xPut(ws,R,1,r[0],XS.lb);ws.mergeCells(R,2,R,6);xPut(ws,R,2,r[1],XS.lb).alignment={horizontal:'center',vertical:'middle',wrapText:true};for(let j=3;j<=6;j++)xStyle(ws.getCell(R,j),XS.lb);ws.getRow(R).height=34;skip.add(i)}
+      else r.forEach((c,j)=>xPut(ws,R,j+1,c,XS.lb));
+      prev='info';return}
+    if(prev==='gap'&&r.length===1){
+      const span=(rows[i+1]||[]).length||1;
+      for(let j=1;j<=span;j++)xStyle(ws.getCell(R,j),XS.org);
+      ws.getCell(R,1).value=r[0].v;if(span>1)ws.mergeCells(R,1,R,span);
+      skip.add(i);prev='sec';return}
+    if(prev==='sec'){r.forEach((c,j)=>xPut(ws,R,j+1,c,XS.dk,true));prev='hdr';return}
+    r.forEach((c,j)=>xPut(ws,R,j+1,c,XS.lb));prev='body';
+  });
+  xFit(ws,rows,ri=>skip.has(ri));
+  return ws;
+}
+function xList(wb,name,head,rows){
+  const ws=wb.addWorksheet(name);
+  head.forEach((h,j)=>xPut(ws,1,j+1,h,XS.org));
+  rows.forEach((r,i)=>r.forEach((c,j)=>xPut(ws,i+2,j+1,c,j===0?XS.lb:null)));
+  xFit(ws,[head].concat(rows));return ws;
+}
+async function hubXlsxStyled(M,L,head,body,base){
+  const wb=new ExcelJS.Workbook();
+  xSummary(wb,M.sum);
+  if(M.hubs)xList(wb,'Hubs',M.hubs[0],M.hubs.slice(1));
+  const ent=a=>({h:a[0],r:a.slice(1)});
+  const cu=ent(M.cust),co=ent(M.cour);
+  xList(wb,'Customers',cu.h,cu.r);xList(wb,'Couriers',co.h,co.r);
+  const th=head.map(h=>({v:h,k:'s'})),tr=body.map(r=>r.map((v,j)=>j===0?{v,k:'s'}:v==null?null:{v,k:L.C[j-1][3]==='n'?'n':L.C[j-1][3]==='g'?'g':'p'}));
+  xList(wb,'Table',th,tr);
+  const buf=await wb.xlsx.writeBuffer();
+  saveBlob(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),base+'.xlsx');
+}
+async function hubExport(kind,L,head,body,f,day){
+  const M=hubModel(f),base=M.scope.toLowerCase()+'-report_'+(M.scope==='Network'?'all':M.hub.replace(/[^\w-]+/g,'_'))+'_'+day;
+  if(kind==='xlsx'&&window.ExcelJS)await hubXlsxStyled(M,L,head,body,base);
+  else if(kind==='xlsx'){
+    const sh=(aoa,w)=>{const ws=XL.utils.aoa_to_sheet(aoa.map(r=>r.map(cellX)));ws['!cols']=w.map(x=>({wch:x}));return ws};
+    const wb=XL.utils.book_new();
+    XL.utils.book_append_sheet(wb,sh(M.sum,[44,22,22,16,14,18]),'Hub Summary');
+    if(M.hubs)XL.utils.book_append_sheet(wb,sh(M.hubs,[36,14,12,13,12,13,12,15,16,16,12,18,14,18]),'Hubs');
+    XL.utils.book_append_sheet(wb,sh(M.cust,[36,14,12,13,12,13,12,15,16,16,12,18]),'Customers');
+    XL.utils.book_append_sheet(wb,sh(M.cour,[36,14,12,13,12,13,12,15,16,16,12,18]),'Couriers');
+    XL.utils.book_append_sheet(wb,tableWs(L,head,body),'Table');
+    XL.writeFile(wb,base+'.xlsx');
+  }else{
+    const lines=[];
+    M.sum.forEach(r=>lines.push(r.map(cellCsv).join(',')));
+    if(M.hubs){lines.push('');lines.push(qv('Hub Performance'));M.hubs.forEach(r=>lines.push(r.map(cellCsv).join(',')))}
+    lines.push('');lines.push(qv('Merchant (Customer) Performance'));M.cust.forEach(r=>lines.push(r.map(cellCsv).join(',')));
+    lines.push('');lines.push(qv('Courier Performance'));M.cour.forEach(r=>lines.push(r.map(cellCsv).join(',')));
+    lines.push('');lines.push(qv('Table data ('+DIMS[L.dim]+' / '+VIEWS[L.view]+')'));tableLines(L,head,body).forEach(x=>lines.push(x));
+    dlCsv(lines,base+'.csv');
+  }
+  say(M.scope+' report exported'+(M.scope==='Network'?'':' for '+M.hub)+' ('+(kind==='xlsx'?'Excel':'CSV')+').');
+}
+async function exportData(kind){
+  if(!LAST)return;
+  const L=LAST,f=F();
+  const head=[DIMS[L.dim]].concat(L.C.map(c=>c[1]));
+  const body=L.rows.map(o=>[o.name].concat(L.C.map(c=>{const v=c[2](o);return v==null?null:v})));
+  const day=new Date().toISOString().slice(0,10);
+  const base='dashboard_'+L.dim+'_'+({rate:'delivery-rate',d12:'d1-d2',tgt:'vs-target'}[L.view])+'_'+day;
+  const sel=i=>{const s=$(i);return s.selectedOptions[0].text};
+  const info=[['Filter','Value'],['Area',sel('fArea')],['Hub',sel('fHub')],['Ship Mode',sel('fShip')],['Customer',sel('fCust')],['From',sel('fFrom')],['To',sel('fTo')],['Search',S.q||'—'],['View',VIEWS[L.view]],['Rows',body.length]];
+  const ej=kind==='xlsx'&&await loadEJ();
+  if(kind==='xlsx'&&!ej&&!await loadXL()){kind='csv';say('Excel export needs the ExcelJS / SheetJS libraries, which could not be loaded, so a CSV was exported instead.',1)}
+  await hubExport(kind,L,head,body,f,day);return;
+  if(kind==='xlsx'){
+    const wb=XL.utils.book_new();XL.utils.book_append_sheet(wb,tableWs(L,head,body),'Data');XL.utils.book_append_sheet(wb,XL.utils.aoa_to_sheet(info),'Filters');
+    XL.writeFile(wb,base+'.xlsx');
+  }else{
+    dlCsv(tableLines(L,head,body),base+'.csv');
+  }
+}
+loadXL();
+/* ---------- Google Sheet (Apps Script) connection, login, last-update indicator ---------- */
+const fdt=ms=>new Date(ms).toLocaleString('en-GB',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+function asof(){
+  const el=$('asof');el.className=META.demo?'demo':'';
+  if(META.demo){el.innerHTML='<b>DEMO DATA</b> – live data has not been loaded. Use “Refresh data now”.';return}
+  const rng=' &nbsp;·&nbsp; <b>Data period:</b> '+esc(dl(0))+' to '+esc(dl(D.days.length-1));
+  if(META.src==='api')el.innerHTML='<b>Live from Google Sheet</b> &nbsp;·&nbsp; <b>Last refreshed:</b> '+esc(fdt(META.at))+(META.updatedAt?' &nbsp;·&nbsp; <b>Sheet updated:</b> '+esc(META.updatedAt):'')+rng;
+  else el.innerHTML='<b>Manual file</b> (not live) &nbsp;·&nbsp; <b>Loaded:</b> '+esc(fdt(META.at))+' &nbsp;·&nbsp; <b>File:</b> '+esc(META.name)+rng+(META.tg?' &nbsp;·&nbsp; <b>Targets:</b> '+esc(META.tg.name):'');
+}
+function persist(){try{sessionStorage.setItem('dash-data',JSON.stringify({D,TG,META}))}catch(e){}}
+function restore(){
+  try{const s=sessionStorage.getItem('dash-data');if(!s)return false;const o=JSON.parse(s);
+    D=o.D;TG=o.TG;META=o.META;initUI();$('reset').hidden=META.src==='api';return true}catch(e){return false}
+}
+const ssGet=k=>{try{return sessionStorage.getItem(k)}catch(e){return null}},ssSet=(k,v)=>{try{sessionStorage.setItem(k,v)}catch(e){}},ssDel=k=>{try{sessionStorage.removeItem(k)}catch(e){}};
+const authed=()=>ssGet('dash-auth')==='1'&&!!ssGet('dash-pass');
+const _render=render;render=function(){_render.apply(null,arguments);asof()};
+
+/* --- API: request, error classification, JSON -> sheets --- */
+class ApiErr extends Error{constructor(code,msg){super(msg);this.code=code}}
+async function apiFetch(pass){
+  let r,txt;
+  try{r=await fetch(CONFIG.API_URL+(CONFIG.API_URL.includes('?')?'&':'?')+'pass='+encodeURIComponent(pass),{redirect:'follow',cache:'no-store'});txt=await r.text()}
+  catch(e){throw new ApiErr('network','Could not reach the Google Sheet service. Check the internet connection, and that the Apps Script web app is deployed with “Who has access: Anyone”.')}
+  const head=txt.slice(0,3000);
+  if(/unauthori[sz]ed/i.test(head)&&txt.length<3000)throw new ApiErr('auth','Unauthorized');
+  if(/^\s*</.test(txt))throw new ApiErr('access','The Google Apps Script link returned a web page instead of data. Re-deploy it as a Web app with “Execute as: Me” and “Who has access: Anyone”.');
+  let j;try{j=JSON.parse(txt)}catch(e){throw new ApiErr('format','The service did not return valid JSON.')}
+  const err=j&&!Array.isArray(j)&&typeof j==='object'?(j.error??(j.success===false||j.ok===false||/^(error|fail)/i.test(String(j.status||''))?(j.message||'error'):null)):null;
+  if(err!=null){if(/unauthori[sz]ed|password|forbidden|denied/i.test(String(err)+' '+(j.message||'')))throw new ApiErr('auth','Unauthorized');throw new ApiErr('format',String(err))}
+  return j;
+}
+/* Accepts: {SheetName:[[header..],[row..]]}  |  {SheetName:[{col:val},..]}  |  {SheetName:{headers:[],rows:[]}}
+   |  [{name,rows|data|values}]  |  the same wrapped in {data:..} / {sheets:..} / {result:..} */
+function toAoa(v){
+  if(Array.isArray(v)){
+    if(!v.length)return[];
+    if(Array.isArray(v[0]))return v;
+    if(v[0]&&typeof v[0]==='object'){const keys=[];const seen=new Set();for(let i=0;i<Math.min(v.length,200);i++)for(const k of Object.keys(v[i]))if(!seen.has(k)){seen.add(k);keys.push(k)}
+      return[keys].concat(v.map(o=>keys.map(k=>o[k]==null?null:o[k])))}
+    return[];
+  }
+  if(v&&typeof v==='object'){
+    const h=v.headers||v.columns||v.header,rows=v.rows||v.data||v.values;
+    if(Array.isArray(rows)){const a=toAoa(rows);return h&&Array.isArray(h)&&(!a.length||Array.isArray(a[0])&&String(a[0][0])!==String(h[0]))?[h].concat(a):a}
+  }
+  return[];
+}
+function apiSheets(j){
+  let root=j,meta={};
+  for(let i=0;i<3;i++){
+    if(root&&!Array.isArray(root)&&typeof root==='object'){
+      meta.updatedAt=meta.updatedAt||root.updatedAt||root.lastUpdated||root.last_update||root.timestamp||null;
+      const w=['data','sheets','result','payload'].find(k=>root[k]&&typeof root[k]==='object'&&Object.keys(root).filter(x=>root[x]&&typeof root[x]==='object').length===1||root[k]&&typeof root[k]==='object'&&!Array.isArray(root[k])&&!toAoa(root[k]).length);
+      if(w){root=root[w];continue}
+    }
+    break;
+  }
+  const sheets=[];
+  if(Array.isArray(root)){root.forEach((s,i)=>{if(s&&typeof s==='object'&&!Array.isArray(s)){const nm=s.name||s.sheetName||s.sheet||s.title||('Sheet'+(i+1));sheets.push({name:String(nm),aoa:toAoa(s.rows||s.data||s.values||s)})}})}
+  else if(root&&typeof root==='object'){for(const k of Object.keys(root)){const a=toAoa(root[k]);if(a.length)sheets.push({name:k,aoa:a})}}
+  if(meta.updatedAt!=null){const d=new Date(meta.updatedAt);meta.updatedAt=isNaN(d)?String(meta.updatedAt):fdt(d.getTime())}
+  return{sheets,meta};
+}
+/* keep the user's filters across an automatic / manual refresh */
+function snapFilters(){const f=F();return{area:f.area,hub:f.hub!==''?D.hubs[+f.hub]:'',cust:f.cust!==''?D.customers[+f.cust]:'',ship:f.ship,from:D.days[f.from],to:D.days[f.to],toLast:f.to===D.days.length-1,q:S.q}}
+function applyFilters(s){
+  if([...$('fArea').options].some(o=>o.value===s.area))$('fArea').value=s.area;fillHubs();
+  const h=D.hubs.indexOf(s.hub);if(s.hub!==''&&h>=0&&[...$('fHub').options].some(o=>o.value==h))$('fHub').value=h;
+  const c=D.customers.indexOf(s.cust);if(s.cust!==''&&c>=0)$('fCust').value=c;
+  $('fShip').value=s.ship;
+  const a=D.days.indexOf(s.from);$('fFrom').value=a>=0?a:0;
+  const b=D.days.indexOf(s.to);$('fTo').value=s.toLast||b<0?D.days.length-1:b;
+  S.q=s.q;$('q').value=s.q;
+}
+let LOADING=false;
+async function loadFromApi(opt){
+  opt=opt||{};if(LOADING)return;LOADING=true;
+  const btn=$('refreshBtn'),old=btn.textContent;btn.disabled=true;btn.textContent='Refreshing …';
+  if(!opt.silent)say('Fetching the latest data from Google Sheet …');
+  try{
+    const j=await apiFetch(opt.pass||ssGet('dash-pass')||'');
+    const {sheets,meta}=apiSheets(j);
+    if(!sheets.length)throw new ApiErr('format','The service returned no sheets.');
+    const r=buildFromSheets(sheets);
+    if(r.error)throw new ApiErr('format',r.error);
+    if(r.targetsOnly)throw new ApiErr('format','Only a target sheet was received; the main data sheets are missing.');
+    const snap=opt.keep&&!META.demo?snapFilters():null;
+    D=r.data;TG=r.targets||{hubs:{},areas:{},total:null,nh:0,na:0};
+    META={demo:false,src:'api',name:'Google Sheet',at:Date.now(),updatedAt:meta.updatedAt};
+    initUI();if(snap)applyFilters(snap);
+    render();$('reset').hidden=true;persist();
+    const s=r.stats;
+    say('Live data loaded: '+fmt(s.del)+' out-for-delivery and '+fmt(s.col)+' Signed shipments ('+dl(0)+' to '+dl(D.days.length-1)+').'+(s.dup?' Duplicate waybills removed: '+fmt(s.dup)+'.':'')+(s.bad?' Rows skipped for an unreadable date: '+fmt(s.bad)+'.':'')+(r.targets?' Targets: '+r.targets.nh+' hubs, '+r.targets.na+' areas.':' No target sheet was found, so target figures are blank.'));
+  }finally{LOADING=false;btn.disabled=false;btn.textContent=old}
+}
+function forceLogout(msg){ssDel('dash-auth');ssDel('dash-pass');ssDel('dash-data');if(msg)ssSet('dash-lerr',msg);location.reload()}
+$('loginForm').onsubmit=async e=>{
+  e.preventDefault();
+  const u=$('lu').value.trim(),p=$('lp').value,go=$('loginForm').querySelector('.go'),er=$('lerr');
+  if(!u||!p)return;
+  go.disabled=true;go.textContent='Checking …';er.textContent='';
+  try{
+    await loadFromApi({pass:p});
+    ssSet('dash-auth','1');ssSet('dash-pass',p);ssSet('dash-user',u);
+    $('lp').value='';document.documentElement.classList.remove('locked');render();
+    startAuto();
+  }catch(err){
+    er.textContent=err.code==='auth'?'كلمة المرور غير صحيحة':(err.message||'Something went wrong.');
+    if(err.code==='auth')$('lp').select();
+  }finally{go.disabled=false;go.textContent='Sign in'}
+};
+$('logout').onclick=()=>forceLogout();
+$('refreshBtn').onclick=async()=>{try{await loadFromApi({keep:true})}catch(err){if(err.code==='auth')forceLogout('كلمة المرور غير صحيحة');else say(err.message,1)}};
+$('reset').onclick=$('refreshBtn').onclick;
+$('theme2').onclick=()=>$('theme').click();
+let AUTOT=null;
+function startAuto(){
+  if(AUTOT||!CONFIG.AUTO_REFRESH_MIN)return;
+  AUTOT=setInterval(async()=>{
+    if(document.hidden||META.src==='manual'||!authed())return;
+    try{await loadFromApi({keep:true,silent:true})}catch(err){if(err.code==='auth')forceLogout('كلمة المرور غير صحيحة');else say('Automatic refresh failed ('+err.message+'). Showing the last loaded data.',1)}
+  },CONFIG.AUTO_REFRESH_MIN*60000);
+}
+{const m=ssGet('dash-lerr');if(m){$('lerr').textContent=m;ssDel('dash-lerr')}}
+if(authed()){
+  restore();render();startAuto();
+  loadFromApi({keep:true,silent:true}).catch(err=>{if(err.code==='auth')forceLogout('كلمة المرور غير صحيحة');else say('Could not refresh from Google Sheet ('+err.message+'). Showing the last loaded data.',1)});
+}else render();
+</script>
+</body>
+</html>
