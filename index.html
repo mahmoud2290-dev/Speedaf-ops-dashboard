@@ -976,15 +976,7 @@ function logTargets(src,res){
   }catch(e){console.warn('[Targets] log failed',e)}
 }
 window.dashTargets=()=>logTargets('current data',null);
-function expandCompact(o){const n=o.h.length,a=[o.h.slice()];for(let i=0;i<o.r.length;i+=n){const row=new Array(n);for(let c=0;c<n;c++){const v=o.r[i+c],d=o.d[c];row[c]=d?d[v]:v}a.push(row)}return a}
 function apiSheets(j){
-  if(j&&j.compact&&j.sheets&&typeof j.sheets==='object'){
-    const sheets=[],meta={updatedAt:j.updatedAt||null};
-    for(const k of Object.keys(j.sheets)){const v=j.sheets[k];const a=v&&v.h&&v.r?expandCompact(v):toAoa(v);if(a.length)sheets.push({name:k,aoa:a})}
-    sheets.forEach(s=>{if(isTargetSheet(s))s.aoa=cleanTargetAoa(s.aoa)});
-    if(meta.updatedAt!=null){const d=new Date(meta.updatedAt);meta.updatedAt=isNaN(d)?String(meta.updatedAt):fdt(d.getTime())}
-    return{sheets,meta};
-  }
   let root=j,meta={};
   for(let i=0;i<3;i++){
     if(root&&!Array.isArray(root)&&typeof root==='object'){
