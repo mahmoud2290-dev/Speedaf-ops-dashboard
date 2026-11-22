@@ -266,15 +266,6 @@ function agg(rows,f,keyFn){
   }
   return m;
 }
-/* Target for the current selection, taken as-is from the "target" sheet, returned as [All, Local] (null = not in the sheet).
-   Hub -> the hub's own target.  Area -> that area's target.  No Area / Hub selected -> the company "Total" target.
-   Nothing is estimated or averaged; a missing target is shown as N/A. */
-const areaTarget=n=>{const k=nk(n);for(const a in TG.areas)if(nk(a)===k)return TG.areas[a];return null};
-function scopeTarget(f){
-  if(f.cust!=='')return null;
-  const t=f.hub!==''?TG.hubs[nk(D.hubs[f.hub])]:f.area?areaTarget(f.area):TG.total;
-  return t&&(t[0]!=null||t[1]!=null)?t:null;
-}
 const gap=(r,t)=>t==null?null:(r-t)*100,ach=(r,t)=>t?r/t:null;
 function render(){
   const f=F();
@@ -283,12 +274,12 @@ function render(){
   const tot=[...agg(D.A,f,()=>'t').values()][0]||Z();
   const cl=tot.d1+tot.d2+tot.d3;
   const K=[['Out for delivery',fmt(tot.del),'Delivery sheet',1],['Signed',fmt(tot.col),'Signed sheet'],['Delivery rate',pf(pc(tot.col,tot.del)),'Signed ÷ out',1],['Local delivery rate',pf(pc(tot.lc,tot.l)),fmt(tot.lc)+' of '+fmt(tot.l)+' out'],['Fulfillment delivery rate',pf(pc(tot.fc,tot.f)),fmt(tot.fc)+' of '+fmt(tot.f)+' out'],['D1 rate',pf(pc(tot.d1,cl)),'of classified Signed'],['D2 rate',pf(pc(tot.d2,cl)),'of classified Signed'],['Over 2 days',pf(pc(tot.d3,cl)),'of classified Signed']];
-  const ft=scopeTarget(f);
+  const ft=f.cust!==''?null:f.hub!==''?(TG.hubs[nk(D.hubs[f.hub])]||null):f.area?(TG.areas[f.area]||null):TG.total;
   const tA=ft&&f.ship===''&&tot.del?ft[0]:null,tL=ft&&f.ship!=='1'&&tot.l?ft[1]:null,rA=pc(tot.col,tot.del),rL=pc(tot.lc,tot.l);
-  const gs=g=>g==null?'N/A':(g>=0?'+':'−')+Math.abs(g).toFixed(1)+' pp',noT=f.cust!==''?'No target at customer level':f.hub!==''?'Target not set for this hub':f.area?'Target not set for this area':'Total target not found in the target sheet',sb=(r,t,m)=>t==null?(m||noT):pf(r)+' vs target '+pf(t);
+  const gs=g=>g==null?'—':(g>=0?'+':'−')+Math.abs(g).toFixed(1)+' pp',sb=(r,t)=>t==null?'No target for this selection':pf(r)+' vs target '+pf(t);
   const cg=g=>g==null?'':g>=0?'pos':'neg';
   const gA=gap(rA,tA),gL=gap(rL,tL),aA=ach(rA,tA),aL=ach(rL,tL);
-  K.push(['All: gap to target',gs(gA),sb(rA,tA,ft&&f.ship!==''?'All target applies when Ship Mode = All':null),0,cg(gA)],['Local: gap to target',gs(gL),sb(rL,tL,ft&&f.ship==='1'?'Local target does not apply to Fulfillment':null),0,cg(gL)],['Achievement rate (All)',aA==null?'N/A':pf(aA),'achieved ÷ target',1,aA==null?'':aA>=1?'pos':'neg'],['Achievement rate (Local)',aL==null?'N/A':pf(aL),'achieved ÷ target',0,aL==null?'':aL>=1?'pos':'neg']);
+  K.push(['All: gap to target',gs(gA),sb(rA,tA),0,cg(gA)],['Local: gap to target',gs(gL),sb(rL,tL),0,cg(gL)],['Achievement rate (All)',aA==null?'—':pf(aA),'achieved ÷ target',1,aA==null?'':aA>=1?'pos':'neg'],['Achievement rate (Local)',aL==null?'—':pf(aL),'achieved ÷ target',0,aL==null?'':aL>=1?'pos':'neg']);
   const dm=agg(D.A,f,r=>r[0]),dd=[...dm.keys()].sort((a,b)=>a-b);
   const tipR=(name,v,tg,extra)=>{const a=[name,'Value: '+pf(v)];if(extra)a.push(extra);if(tg!=null)a.push('Target: '+pf(tg)+' · gap '+sgn((v-tg)*100));return a};
   const rF=pc(tot.fc,tot.f),pD1=pc(tot.d1,cl),pD2=pc(tot.d2,cl),pD3=pc(tot.d3,cl);
@@ -329,8 +320,7 @@ function render(){
   const m=agg(S.dim==='cour'?D.B:D.A,f,kf);
   const dt=[...m.values()].reduce((a,o)=>a+o.del,0);
   const cls=o=>o.d1+o.d2+o.d3;
-  const tfor=(o,k)=>{if(f.cust!==''||(k===0&&f.ship!=='')||(k===1&&f.ship==='1'))return null;if(k===1&&!o.l)return null;if(k===0&&!o.del)return null;const v=S.dim==='hub'?TG.hubs[nk(o.name)]:S.dim==='area'?areaT(o.name):null;return v?v[k]:null};
-  const areaT=areaTarget;
+  const tfor=(o,k)=>{if(f.cust!==''||(k===0&&f.ship!=='')||(k===1&&f.ship==='1'))return null;if(k===1&&!o.l)return null;if(k===0&&!o.del)return null;const v=S.dim==='hub'?TG.hubs[nk(o.name)]:S.dim==='area'?TG.areas[o.name]:null;return v?v[k]:null};
   const C=S.view==='rate'?[
     ['del','Out for delivery',o=>o.del,'n'],['share','% of total out',o=>pc(o.del,dt),'p2'],['col','Signed',o=>o.col,'n'],['rate','Delivery rate',o=>pc(o.col,o.del),'p'],
     ['l','Local out',o=>o.l,'n'],['lc','Local Signed',o=>o.lc,'n'],['lr','Local rate',o=>pc(o.lc,o.l),'p'],
@@ -394,18 +384,13 @@ function parseTarget(a){
   const nrm=v=>sv(v).replace(/\s+/g,' ').toLowerCase();
   let hr=-1;for(let i=0;i<Math.min(a.length,6);i++){if(a[i].some(c=>nrm(c)==='hub')){hr=i;break}}
   if(hr<0)return null;
-  const H=a[hr].map(nrm),iH=H.indexOf('hub'),iA2=H.indexOf('area',iH+1),end=iA2>=0?iA2:H.length;
-  /* 65% / "65%" / 65 / 0.65 / "0,65" all mean 65 %. Anything outside 0-100 % is treated as missing (never guessed). */
-  const num=v=>{if(v==null||v==='')return null;let s=typeof v==='number'?v:parseFloat(String(v).replace(/[%\s]/g,'').replace(',','.'));if(isNaN(s))return null;if(typeof v==='string'&&v.includes('%')||s>1)s/=100;return s>0&&s<=1?s:null};
-  /* columns are found by their header text (All / Local); the order Hub | All | Local is only assumed when the headers do not say */
-  const cols=(from,to)=>{let ia=-1,il=-1;for(let k=from;k<to;k++){const h=H[k]||'';if(il<0&&/local/.test(h))il=k;else if(ia<0&&/\b(all|total|overall)\b/.test(h))ia=k}
-    return[ia>=0?ia:(il>=0?-1:from),il>=0?il:(ia>=0?-1:from+1)]};
-  const [hA,hL]=cols(iH+1,end);
+  const H=a[hr].map(nrm),iH=H.indexOf('hub'),iA2=H.indexOf('area',iH+1);
+  const num=v=>{if(v==null||v==='')return null;const pct=typeof v==='string'&&v.includes('%');const s=typeof v==='number'?v:parseFloat(String(v).replace('%','').replace(',','.'));if(isNaN(s))return null;return pct||s>1.5?s/100:s};
   const out={hubs:{},areas:{},total:null,nh:0,na:0};
   for(let r=hr+1;r<a.length;r++){const x=a[r];
     const h=sv(x[iH]);
-    if(h){const t1=hA>=0?num(x[hA]):null,t2=hL>=0?num(x[hL]):null;if(t1!=null||t2!=null){out.hubs[h.toLowerCase()]=[t1,t2];out.nh++}}
-    if(iA2>=0){const ar=sv(x[iA2]);if(ar){const [aA,aL]=cols(iA2+1,H.length),t1=aA>=0?num(x[aA]):null,t2=aL>=0?num(x[aL]):null;if(/^total$/i.test(ar))out.total=[t1,t2];else{out.areas[ar]=[t1,t2];out.na++}}}
+    if(h){const t1=num(x[iH+1]),t2=num(x[iH+2]);if(t1!=null||t2!=null){out.hubs[h.toLowerCase()]=[t1,t2];out.nh++}}
+    if(iA2>=0){const ar=sv(x[iA2]);if(ar){const t1=num(x[iA2+1]),t2=num(x[iA2+2]);if(/^total$/i.test(ar))out.total=[t1,t2];else{out.areas[ar]=[t1,t2];out.na++}}}
   }
   return out.nh||out.na?out:null;
 }
@@ -420,10 +405,10 @@ function findHeader(a){
   return null;
 }
 function buildFromSheets(sheets){
-  const del=[],col=[],seenD=new Set(),seenC=new Set(),missing=[],info=[];let dup=0,bad=0,tg=null;
+  const del=[],col=[],seenD=new Set(),seenC=new Set(),missing=[],info=[];let dup=0,bad=0,tg=null,tgRaw=null,tgName='',tgExact=false;
   for(const sh of sheets){
     const a=sh.aoa;if(!a||!a.length)continue;
-    if(isTargetSheet(sh)){const t=parseTarget(a);if(t)tg=t;else missing.push(sh.name+' (could not read targets: need Hub and Target columns)');continue}
+    if(isTargetSheet(sh)){const t=parseTarget(a),ex=/^\s*target\s*$/i.test(sh.name);if(t){if(ex||!tgExact){tg=t;tgRaw=a;tgName=sh.name;if(ex)tgExact=true}}else missing.push(sh.name+' (could not read targets: need Hub and Target columns)');continue}
     const hf=findHeader(a);
     if(!hf){info.push(sh.name+': skipped (no header row with Waybill / Hub / time columns found)');continue}
     const H=hf.H,ix=k=>hf.map[k]??-1,nm=norm(sh.name);
@@ -455,7 +440,7 @@ function buildFromSheets(sheets){
     }
     info.push(sh.name+' → '+(isDel?'out for delivery':'Signed')+': '+fmt((isDel?del:col).length-n0)+' rows');
   }
-  if(!del.length&&!col.length&&tg)return{targetsOnly:true,targets:tg};
+  if(!del.length&&!col.length&&tg)return{targetsOnly:true,targets:tg,targetRaw:tgRaw,targetName:tgName};
   if(!del.length&&!col.length)return{error:'No Delivery or Signed data found. '+(missing.length?'Problems: '+missing.join('; ')+'.':'Make sure the file has a sheet with "Delivery time" and one with "Collection time" (or "Signed time") columns.')+(info.length?' Sheets seen: '+info.join('; ')+'.':'')};
   const all=del.concat(col);
   const days=[...new Set(all.map(r=>r[0]))].sort(),hubs=[...new Set(all.map(r=>r[1]))].sort();
@@ -469,7 +454,7 @@ function buildFromSheets(sheets){
     for(const r of col){const o=get(r);o[5]++;o[{d1:6,d2:7,d3:8,u:9}[r[6]]]++}
     return[...m.values()];
   }
-  return{data:{days,hubs,hubArea:hubs.map(h=>ha[h]||'Unassigned'),customers,couriers,A:cube(3,customers),B:cube(4,couriers)},targets:tg,stats:{th:tg?tg.nh:0,ta:tg?tg.na:0,del:del.length,col:col.length,dup,bad,missing,info}};
+  return{data:{days,hubs,hubArea:hubs.map(h=>ha[h]||'Unassigned'),customers,couriers,A:cube(3,customers),B:cube(4,couriers)},targets:tg,targetRaw:tgRaw,targetName:tgName,stats:{th:tg?tg.nh:0,ta:tg?tg.na:0,del:del.length,col:col.length,dup,bad,missing,info}};
 }
 //>>LOGIC
 
@@ -729,8 +714,8 @@ $('file').onchange=async e=>{
     }
     const r=buildFromSheets(sheets);
     if(r.error)throw new Error(r.error);
-    if(r.targetsOnly){TG=r.targets;META.tg={name:files.map(f=>f.name).join(', '),at:Date.now()};render();$('reset').hidden=false;persist();say('Targets updated from '+files.map(f=>f.name).join(', ')+': '+r.targets.nh+' hub targets read.');return}
-    D=r.data;if(r.targets){TG=r.targets;META.tg={name:files.map(f=>f.name).join(', '),at:Date.now()}}META.demo=false;META.src='manual';META.name=files.map(f=>f.name).join(', ');META.at=Date.now();initUI();render();$('reset').hidden=false;persist();
+    if(r.targetsOnly){TG=r.targets;logTargets('Excel upload (targets only)',r);META.tg={name:files.map(f=>f.name).join(', '),at:Date.now()};render();$('reset').hidden=false;persist();say('Targets updated from '+files.map(f=>f.name).join(', ')+': '+r.targets.nh+' hubs, '+r.targets.na+' areas'+(r.targets.total?', company total '+pf(r.targets.total[0])+' / '+pf(r.targets.total[1]):'')+'.');return}
+    D=r.data;if(r.targets){TG=r.targets;META.tg={name:files.map(f=>f.name).join(', '),at:Date.now()}}META.demo=false;META.src='manual';META.name=files.map(f=>f.name).join(', ');META.at=Date.now();initUI();render();$('reset').hidden=false;persist();logTargets('Excel upload',r);
     const s=r.stats;
     say('Loaded '+fmt(s.del)+' out-for-delivery and '+fmt(s.col)+' Signed shipments ('+dl(0)+' to '+dl(D.days.length-1)+') from '+files.map(f=>f.name).join(', ')+'.'+(s.dup?' Duplicate waybills removed: '+fmt(s.dup)+'.':'')+(s.bad?' Rows skipped for an unreadable date: '+fmt(s.bad)+'.':'')+(s.missing.length?' Skipped: '+s.missing.join('; ')+'.':'')+(!s.del||!s.col?' Note: only one of the two datasets was found. Sheets read: '+(s.info.join('; ')||'none')+'.':'')+(r.targets?' Targets loaded: '+s.th+' hubs, '+s.ta+' areas.':' No Target sheet found, so the previous targets were kept.'));
   }catch(err){say(err.message,1)}
@@ -763,7 +748,7 @@ function hubModel(f){
   const R=(v,k)=>v==null||!isFinite(v)?s('n/a'):{v,k};
   const one=(rows,ff)=>[...agg(rows,ff,()=>'t').values()][0]||Z();
   const tot=one(D.A,f),both=one(D.A,{...f,ship:''});
-  const cl=tot.d1+tot.d2+tot.d3,tg=scopeTarget(f);
+  const cl=tot.d1+tot.d2+tot.d3,tg=f.cust!==''?null:isHub?(TG.hubs[nk(hub)]||null):isArea?(TG.areas[f.area]||null):TG.total;
   const tA=tg&&f.ship===''?tg[0]:null,tL=tg&&f.ship!=='1'?tg[1]:null,tLb=tg?tg[1]:null;
   const rA=rt(tot.col,tot.del),rL=rt(tot.lc,tot.l);
   const tc=t=>t!=null?{v:t,k:'p'}:s('No target');
@@ -954,6 +939,38 @@ function toAoa(v){
   }
   return[];
 }
+/* The Google Sheet JSON is brought to the same shape the Excel reader produces before any target maths runs:
+   blank cells -> null, text trimmed, and column names that a script de-duplicated ("Area_1", "Area (2)", "Target All.1" ...) -> the original name. */
+function cleanTargetAoa(aoa){
+  const dedup=/^(area|hub|target all|local target)[\s_.\-]*\(?\d+\)?$/i;
+  const rows=aoa.map((r,ri)=>{
+    const o=(Array.isArray(r)?r:[]).map(c=>{
+      if(c==null)return null;
+      if(typeof c==='string'){let s=c.replace(/\u00a0/g,' ').trim();if(s==='')return null;if(ri<6){const m=s.replace(/\s+/g,' ').match(dedup);if(m)s=m[1]}return s}
+      return c});
+    while(o.length&&o[o.length-1]==null)o.pop();return o});
+  return rows;
+}
+/* Console report: raw target sheet, parsed targets, and the target each filter will use. Run dashTargets() any time. */
+function logTargets(src,res){
+  try{
+    const T=TG,f4=v=>v==null?null:+v.toFixed(4);
+    console.group('[Targets] '+src+' -> '+T.nh+' hubs, '+T.na+' areas, total '+(T.total?f4(T.total[0])+' / '+f4(T.total[1]):'none'));
+    if(res&&res.targetRaw){console.log('Sheet name: "'+res.targetName+'"  rows: '+res.targetRaw.length);console.log('Raw rows after cleaning (first 6):');console.table(res.targetRaw.slice(0,6).map(r=>{const o={};r.forEach((c,i)=>o['c'+i]=c);return o}))}
+    console.log('Parsed hub targets:');console.table(Object.entries(T.hubs).map(([h,v])=>({hub:h,all:f4(v[0]),local:f4(v[1])})));
+    console.log('Parsed area targets:');console.table(Object.entries(T.areas).map(([a,v])=>({area:a,all:f4(v[0]),local:f4(v[1])})));
+    const rows=[{filter:'All (no Area / Hub)',name:'Total',all:T.total?f4(T.total[0]):null,local:T.total?f4(T.total[1]):null}];
+    [...new Set(D.hubArea)].sort().forEach(a=>{const v=T.areas[a];rows.push({filter:'Area',name:a,all:v?f4(v[0]):null,local:v?f4(v[1]):null})});
+    D.hubs.forEach(h=>{const v=T.hubs[nk(h)];rows.push({filter:'Hub',name:h,all:v?f4(v[0]):null,local:v?f4(v[1]):null,matched:!!v})});
+    console.log('Target used by each filter (null = no target found):');console.table(rows);
+    const H=Object.values(T.hubs);
+    console.log('Fingerprint (must be identical for Excel upload and Google Sheet): hubs='+T.nh+' areas='+T.na+' total='+(T.total?f4(T.total[0])+'/'+f4(T.total[1]):'-')+' sumHubAll='+f4(H.reduce((s,v)=>s+(v[0]||0),0))+' sumHubLocal='+f4(H.reduce((s,v)=>s+(v[1]||0),0)));
+    if(!T.na)console.warn('No Area block was found in the target sheet. If the script sends rows as objects, duplicate column names (Area / Target All / Local target) are merged; send getValues() arrays instead.');
+    const miss=D.hubs.filter(h=>!T.hubs[nk(h)]);if(miss.length)console.warn('Hubs with data but no target: '+miss.join(', '));
+    console.groupEnd();
+  }catch(e){console.warn('[Targets] log failed',e)}
+}
+window.dashTargets=()=>logTargets('current data',null);
 function apiSheets(j){
   let root=j,meta={};
   for(let i=0;i<3;i++){
@@ -967,6 +984,7 @@ function apiSheets(j){
   const sheets=[];
   if(Array.isArray(root)){root.forEach((s,i)=>{if(s&&typeof s==='object'&&!Array.isArray(s)){const nm=s.name||s.sheetName||s.sheet||s.title||('Sheet'+(i+1));sheets.push({name:String(nm),aoa:toAoa(s.rows||s.data||s.values||s)})}})}
   else if(root&&typeof root==='object'){for(const k of Object.keys(root)){const a=toAoa(root[k]);if(a.length)sheets.push({name:k,aoa:a})}}
+  sheets.forEach(s=>{if(isTargetSheet(s))s.aoa=cleanTargetAoa(s.aoa)});
   if(meta.updatedAt!=null){const d=new Date(meta.updatedAt);meta.updatedAt=isNaN(d)?String(meta.updatedAt):fdt(d.getTime())}
   return{sheets,meta};
 }
@@ -989,6 +1007,7 @@ async function loadFromApi(opt){
   try{
     const j=await apiFetch(opt.pass||ssGet('dash-pass')||'');
     const {sheets,meta}=apiSheets(j);
+    console.log('[API] sheets received:',sheets.map(s=>s.name+' ('+s.aoa.length+' rows)').join(', '));
     if(!sheets.length)throw new ApiErr('format','The service returned no sheets.');
     const r=buildFromSheets(sheets);
     if(r.error)throw new ApiErr('format',r.error);
@@ -997,9 +1016,9 @@ async function loadFromApi(opt){
     D=r.data;TG=r.targets||{hubs:{},areas:{},total:null,nh:0,na:0};
     META={demo:false,src:'api',name:'Google Sheet',at:Date.now(),updatedAt:meta.updatedAt};
     initUI();if(snap)applyFilters(snap);
-    render();$('reset').hidden=true;persist();
+    render();$('reset').hidden=true;persist();logTargets('Google Sheet API',r);
     const s=r.stats;
-    say('Live data loaded: '+fmt(s.del)+' out-for-delivery and '+fmt(s.col)+' Signed shipments ('+dl(0)+' to '+dl(D.days.length-1)+').'+(s.dup?' Duplicate waybills removed: '+fmt(s.dup)+'.':'')+(s.bad?' Rows skipped for an unreadable date: '+fmt(s.bad)+'.':'')+(r.targets?' Targets: '+r.targets.nh+' hub targets read.':' No target sheet was found, so target cards show N/A.'));
+    say('Live data loaded: '+fmt(s.del)+' out-for-delivery and '+fmt(s.col)+' Signed shipments ('+dl(0)+' to '+dl(D.days.length-1)+').'+(s.dup?' Duplicate waybills removed: '+fmt(s.dup)+'.':'')+(s.bad?' Rows skipped for an unreadable date: '+fmt(s.bad)+'.':'')+(r.targets?' Targets: '+r.targets.nh+' hubs, '+r.targets.na+' areas'+(r.targets.total?', company total '+pf(r.targets.total[0])+' / '+pf(r.targets.total[1]):'')+'.':' No target sheet was found, so the target cards are blank.'));
   }finally{LOADING=false;btn.disabled=false;btn.textContent=old}
 }
 function forceLogout(msg){ssDel('dash-auth');ssDel('dash-pass');ssDel('dash-data');if(msg)ssSet('dash-lerr',msg);location.reload()}
