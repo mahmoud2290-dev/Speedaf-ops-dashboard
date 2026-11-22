@@ -941,11 +941,17 @@ function toAoa(v){
 /* The Google Sheet JSON is brought to the same shape the Excel reader produces before any target maths runs:
    blank cells -> null, text trimmed, and column names that a script de-duplicated ("Area_1", "Area (2)", "Target All.1" ...) -> the original name. */
 function cleanTargetAoa(aoa){
-  const dedup=/^(area|hub|target all|local target)[\s_.\-]*\(?\d+\)?$/i;
+  const norm=s=>s.replace(/\u00a0/g,' ').replace(/\s+/g,' ').trim();
+  const dedup=/^(area|hub|target all|local target)[ _.\-]*\(?\d+\)?$/i;
+  /* only the header row is touched (the row holding "Hub"); data rows such as "Area 01" are never renamed */
+  let hr=-1;for(let i=0;i<Math.min(aoa.length,6);i++){if((aoa[i]||[]).some(c=>typeof c==='string'&&/^hub$/i.test(norm(c)))){hr=i;break}}
   const rows=aoa.map((r,ri)=>{
+    const seen=new Set();
     const o=(Array.isArray(r)?r:[]).map(c=>{
       if(c==null)return null;
-      if(typeof c==='string'){let s=c.replace(/\u00a0/g,' ').trim();if(s==='')return null;if(ri<6){const m=s.replace(/\s+/g,' ').match(dedup);if(m)s=m[1]}return s}
+      if(typeof c==='string'){let s=c.replace(/\u00a0/g,' ').trim();if(s==='')return null;
+        if(ri===hr){const n=norm(s).toLowerCase(),m=n.match(dedup);if(m&&seen.has(m[1].toLowerCase()))s=m[1];seen.add(norm(s).toLowerCase())}
+        return s}
       return c});
     while(o.length&&o[o.length-1]==null)o.pop();return o});
   rows.fromObjects=!!aoa.fromObjects;return rows;
@@ -963,7 +969,7 @@ function logTargets(src,res){
     D.hubs.forEach(h=>{const v=T.hubs[nk(h)];rows.push({filter:'Hub',name:h,all:v?f4(v[0]):null,local:v?f4(v[1]):null,matched:!!v})});
     console.log('Target used by each filter (null = no target found):');console.table(rows);
     const H=Object.values(T.hubs);
-    console.log('Fingerprint (must be identical for Excel upload and Google Sheet): hubs='+T.nh+' areas='+T.na+' total='+(T.total?f4(T.total[0])+'/'+f4(T.total[1]):'-')+' sumHubAll='+f4(H.reduce((s,v)=>s+(v[0]||0),0))+' sumHubLocal='+f4(H.reduce((s,v)=>s+(v[1]||0),0)));
+    console.log('Fingerprint (must be identical for Excel upload and Google Sheet): hubs='+T.nh+' areas='+T.na+' total='+(T.total?f4(T.total[0])+'/'+f4(T.total[1]):'-')+' sumHubAll='+f4(H.reduce((s,v)=>s+(v[0]||0),0))+' sumHubLocal='+f4(H.reduce((s,v)=>s+(v[1]||0),0))+' sumAreaAll='+f4(Object.values(T.areas).reduce((s,v)=>s+(v[0]||0),0))+' sumAreaLocal='+f4(Object.values(T.areas).reduce((s,v)=>s+(v[1]||0),0))+' areaNames='+Object.keys(T.areas).join('|'));
     if(!T.na)console.warn('No Area block was found in the target sheet. If the script sends rows as objects, duplicate column names (Area / Target All / Local target) are merged; send getValues() arrays instead.');
     const miss=D.hubs.filter(h=>!T.hubs[nk(h)]);if(miss.length)console.warn('Hubs with data but no target: '+miss.join(', '));
     console.groupEnd();
