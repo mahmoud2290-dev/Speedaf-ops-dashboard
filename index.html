@@ -687,7 +687,7 @@ async function readXlsxStream(file,prog){
 }
 function loadXL(){
   if(window.XLSX){XL=window.XLSX;return Promise.resolve(true)}
-  const srcs=['xlsx.full.min.js','https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'];
+  const srcs=['https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js','https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js','https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'];
   return new Promise(res=>{let i=0;(function next(){
     if(window.XLSX||i>=srcs.length){XL=window.XLSX||null;return res(!!XL)}
     const s=document.createElement('script');s.src=srcs[i++];s.onload=next;s.onerror=next;document.head.appendChild(s)})()});
@@ -707,7 +707,7 @@ $('file').onchange=async e=>{
         let got=null;
         if(/^(xlsx|xlsm)$/.test(ext)){try{got=await readXlsxStream(f,say)}catch(err){console.warn('Streaming reader failed, falling back to SheetJS:',err);got=null}}
         if(got){sheets.push(...got);continue}
-        if(!await loadXL())throw new Error('The Excel reader (SheetJS) could not be loaded. Connect to the internet once, or save xlsx.full.min.js in the same folder as this page. CSV files work without it.');
+        if(!await loadXL())throw new Error('The Excel reader (SheetJS) could not be loaded. Check the internet connection and try again. CSV files work without it.');
         const wb=XL.read(new Uint8Array(await f.arrayBuffer()),{type:'array'});
         for(const n of wb.SheetNames)sheets.push({name:n,aoa:XL.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true,defval:null})});
       }
@@ -782,7 +782,7 @@ function loadScripts(srcs,ok){
     if(ok()||i>=srcs.length)return res(!!ok());
     const s=document.createElement('script');s.src=srcs[i++];s.onload=next;s.onerror=next;document.head.appendChild(s)})()});
 }
-const loadEJ=()=>loadScripts(['exceljs.min.js','https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js'],()=>window.ExcelJS).then(async ok=>{if(ok)await loadScripts(['FileSaver.min.js','https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js'],()=>window.saveAs);return ok});
+const loadEJ=()=>loadScripts(['https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js','https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js'],()=>window.ExcelJS).then(async ok=>{if(ok)await loadScripts(['https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js','https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js'],()=>window.saveAs);return ok});
 function saveBlob(blob,name){
   if(window.saveAs){window.saveAs(blob,name);return}
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();
@@ -890,7 +890,6 @@ async function exportData(kind){
     dlCsv(tableLines(L,head,body),base+'.csv');
   }
 }
-loadXL();
 /* ---------- Google Sheet (Apps Script) connection, login, last-update indicator ---------- */
 const fdt=ms=>new Date(ms).toLocaleString('en-GB',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
 function asof(){
@@ -930,7 +929,7 @@ function toAoa(v){
     if(!v.length)return[];
     if(Array.isArray(v[0]))return v;
     if(v[0]&&typeof v[0]==='object'){const keys=[];const seen=new Set();for(let i=0;i<Math.min(v.length,200);i++)for(const k of Object.keys(v[i]))if(!seen.has(k)){seen.add(k);keys.push(k)}
-      return[keys].concat(v.map(o=>keys.map(k=>o[k]==null?null:o[k])))}
+      const res=[keys].concat(v.map(o=>keys.map(k=>o[k]==null?null:o[k])));res.fromObjects=true;return res}
     return[];
   }
   if(v&&typeof v==='object'){
@@ -949,7 +948,7 @@ function cleanTargetAoa(aoa){
       if(typeof c==='string'){let s=c.replace(/\u00a0/g,' ').trim();if(s==='')return null;if(ri<6){const m=s.replace(/\s+/g,' ').match(dedup);if(m)s=m[1]}return s}
       return c});
     while(o.length&&o[o.length-1]==null)o.pop();return o});
-  return rows;
+  rows.fromObjects=!!aoa.fromObjects;return rows;
 }
 /* Console report: raw target sheet, parsed targets, and the target each filter will use. Run dashTargets() any time. */
 function logTargets(src,res){
@@ -1012,13 +1011,15 @@ async function loadFromApi(opt){
     const r=buildFromSheets(sheets);
     if(r.error)throw new ApiErr('format',r.error);
     if(r.targetsOnly)throw new ApiErr('format','Only a target sheet was received; the main data sheets are missing.');
+    let tgWarn='';
+    if(r.targets&&r.targetRaw&&r.targetRaw.fromObjects&&!r.targets.na){r.targets=null;tgWarn=' WARNING: the target sheet was sent as objects, so its repeated columns (Area / Target All / Local target) were merged and the hub targets are unreliable. Targets were ignored (cards show —). Fix the Apps Script to return getValues() arrays.';console.warn('[Targets] ignored: target sheet arrived as objects with merged duplicate columns.')}
     const snap=opt.keep&&!META.demo?snapFilters():null;
     D=r.data;TG=r.targets||{hubs:{},areas:{},total:null,nh:0,na:0};
     META={demo:false,src:'api',name:'Google Sheet',at:Date.now(),updatedAt:meta.updatedAt};
     initUI();if(snap)applyFilters(snap);
     render();$('reset').hidden=true;persist();logTargets('Google Sheet API',r);
     const s=r.stats;
-    say('Live data loaded: '+fmt(s.del)+' out-for-delivery and '+fmt(s.col)+' Signed shipments ('+dl(0)+' to '+dl(D.days.length-1)+').'+(s.dup?' Duplicate waybills removed: '+fmt(s.dup)+'.':'')+(s.bad?' Rows skipped for an unreadable date: '+fmt(s.bad)+'.':'')+(r.targets?' Targets: '+r.targets.nh+' hubs, '+r.targets.na+' areas'+(r.targets.total?', company total '+pf(r.targets.total[0])+' / '+pf(r.targets.total[1]):'')+'.':' No target sheet was found, so the target cards are blank.'));
+    say('Live data loaded: '+fmt(s.del)+' out-for-delivery and '+fmt(s.col)+' Signed shipments ('+dl(0)+' to '+dl(D.days.length-1)+').'+(s.dup?' Duplicate waybills removed: '+fmt(s.dup)+'.':'')+(s.bad?' Rows skipped for an unreadable date: '+fmt(s.bad)+'.':'')+tgWarn+(r.targets?' Targets: '+r.targets.nh+' hubs, '+r.targets.na+' areas'+(r.targets.total?', company total '+pf(r.targets.total[0])+' / '+pf(r.targets.total[1]):'')+'.':' No target sheet was found, so the target cards are blank.'));
   }finally{LOADING=false;btn.disabled=false;btn.textContent=old}
 }
 function forceLogout(msg){ssDel('dash-auth');ssDel('dash-pass');ssDel('dash-data');if(msg)ssSet('dash-lerr',msg);location.reload()}
