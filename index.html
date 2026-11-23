@@ -386,7 +386,19 @@ function parseTarget(a){
   if(hr<0)return null;
   const H=a[hr].map(nrm),iH=H.indexOf('hub'),iA2=H.indexOf('area',iH+1);
   const num=v=>{if(v==null||v==='')return null;const pct=typeof v==='string'&&v.includes('%');const s=typeof v==='number'?v:parseFloat(String(v).replace('%','').replace(',','.'));if(isNaN(s))return null;return pct||s>1.5?s/100:s};
-  const out={hubs:{},areas:{},total:null,nh:0,na:0};
+  const out={hubs:{},areas:{},total:null,nh:0,na:0,hubMap:{}};
+  /* unified layout: A=Hub/Area/Total name, B=Target All, C=Local target; F=Area, G=Hub (which hubs belong to which Area) */
+  if(iA2>=0&&H[iA2+1]==='hub'){
+    const iG=iA2+1,areaSet=new Set();
+    for(let r=hr+1;r<a.length;r++){const x=a[r],ar=sv(x[iA2]),hb=sv(x[iG]);if(ar&&hb){out.hubMap[hb.toLowerCase()]=ar;areaSet.add(ar.toLowerCase())}}
+    for(let r=hr+1;r<a.length;r++){const x=a[r],nmv=sv(x[iH]);if(!nmv)continue;
+      const t1=num(x[iH+1]),t2=num(x[iH+2]);
+      if(/^total$/i.test(nmv)){out.total=[t1,t2];continue}
+      if(areaSet.has(nmv.toLowerCase())||(/^area\s*\d+$/i.test(nmv)&&out.hubMap[nmv.toLowerCase()]==null)){out.areas[nmv]=[t1,t2];out.na++;continue}
+      if(t1!=null||t2!=null){out.hubs[nmv.toLowerCase()]=[t1,t2];out.nh++}
+    }
+    return out.nh||out.na?out:null;
+  }
   for(let r=hr+1;r<a.length;r++){const x=a[r];
     const h=sv(x[iH]);
     if(h){const t1=num(x[iH+1]),t2=num(x[iH+2]);if(t1!=null||t2!=null){out.hubs[h.toLowerCase()]=[t1,t2];out.nh++}}
@@ -454,7 +466,7 @@ function buildFromSheets(sheets){
     for(const r of col){const o=get(r);o[5]++;o[{d1:6,d2:7,d3:8,u:9}[r[6]]]++}
     return[...m.values()];
   }
-  return{data:{days,hubs,hubArea:hubs.map(h=>ha[h]||'Unassigned'),customers,couriers,A:cube(3,customers),B:cube(4,couriers)},targets:tg,targetRaw:tgRaw,targetName:tgName,stats:{th:tg?tg.nh:0,ta:tg?tg.na:0,del:del.length,col:col.length,dup,bad,missing,info}};
+  return{data:{days,hubs,hubArea:hubs.map(h=>(tg&&tg.hubMap&&tg.hubMap[nk(h)])||ha[h]||'Unassigned'),customers,couriers,A:cube(3,customers),B:cube(4,couriers)},targets:tg,targetRaw:tgRaw,targetName:tgName,stats:{th:tg?tg.nh:0,ta:tg?tg.na:0,del:del.length,col:col.length,dup,bad,missing,info}};
 }
 //>>LOGIC
 
@@ -714,7 +726,7 @@ $('file').onchange=async e=>{
     }
     const r=buildFromSheets(sheets);
     if(r.error)throw new Error(r.error);
-    if(r.targetsOnly){TG=r.targets;logTargets('Excel upload (targets only)',r);META.tg={name:files.map(f=>f.name).join(', '),at:Date.now()};render();$('reset').hidden=false;persist();say('Targets updated from '+files.map(f=>f.name).join(', ')+': '+r.targets.nh+' hubs, '+r.targets.na+' areas'+(r.targets.total?', company total '+pf(r.targets.total[0])+' / '+pf(r.targets.total[1]):'')+'.');return}
+    if(r.targetsOnly){TG=r.targets;if(TG.hubMap){D.hubArea=D.hubs.map((h,i)=>TG.hubMap[nk(h)]||D.hubArea[i]);initUI()}logTargets('Excel upload (targets only)',r);META.tg={name:files.map(f=>f.name).join(', '),at:Date.now()};render();$('reset').hidden=false;persist();say('Targets updated from '+files.map(f=>f.name).join(', ')+': '+r.targets.nh+' hubs, '+r.targets.na+' areas'+(r.targets.total?', company total '+pf(r.targets.total[0])+' / '+pf(r.targets.total[1]):'')+'.');return}
     D=r.data;if(r.targets){TG=r.targets;META.tg={name:files.map(f=>f.name).join(', '),at:Date.now()}}META.demo=false;META.src='manual';META.name=files.map(f=>f.name).join(', ');META.at=Date.now();initUI();render();$('reset').hidden=false;persist();logTargets('Excel upload',r);
     const s=r.stats;
     say('Loaded '+fmt(s.del)+' out-for-delivery and '+fmt(s.col)+' Signed shipments ('+dl(0)+' to '+dl(D.days.length-1)+') from '+files.map(f=>f.name).join(', ')+'.'+(s.dup?' Duplicate waybills removed: '+fmt(s.dup)+'.':'')+(s.bad?' Rows skipped for an unreadable date: '+fmt(s.bad)+'.':'')+(s.missing.length?' Skipped: '+s.missing.join('; ')+'.':'')+(!s.del||!s.col?' Note: only one of the two datasets was found. Sheets read: '+(s.info.join('; ')||'none')+'.':'')+(r.targets?' Targets loaded: '+s.th+' hubs, '+s.ta+' areas.':' No Target sheet found, so the previous targets were kept.'));
@@ -976,7 +988,24 @@ function logTargets(src,res){
   }catch(e){console.warn('[Targets] log failed',e)}
 }
 window.dashTargets=()=>logTargets('current data',null);
+function expandCompact(o){const n=o.h.length,a=[o.h.slice()];for(let i=0;i<o.r.length;i+=n){const row=new Array(n);for(let c=0;c<n;c++){const v=o.r[i+c],d=o.d[c];row[c]=d?d[v]:v}a.push(row)}return a}
+function buildFromCube(j){
+  const key=Object.keys(j.sheets||{}).find(k=>/target/i.test(k));
+  const aoa=key?cleanTargetAoa(toAoa(j.sheets[key])):[];
+  const tg=aoa.length?parseTarget(aoa):null,data=j.data;
+  if(tg&&tg.hubMap)data.hubArea=data.hubs.map((h,i)=>tg.hubMap[nk(h)]||data.hubArea[i]);
+  const st=j.stats||{};
+  return{data,targets:tg,targetRaw:aoa,targetName:key||'',stats:{th:tg?tg.nh:0,ta:tg?tg.na:0,del:st.del||0,col:st.col||0,dup:st.dup||0,bad:st.bad||0,missing:[],info:[]}};
+}
 function apiSheets(j){
+  if(j&&j.cube&&j.data){const meta={updatedAt:j.updatedAt||null};if(meta.updatedAt!=null){const d=new Date(meta.updatedAt);meta.updatedAt=isNaN(d)?String(meta.updatedAt):fdt(d.getTime())}return{sheets:[{name:'(pre-aggregated)',aoa:[[1]]}],meta}}
+  if(j&&j.compact&&j.sheets&&typeof j.sheets==='object'){
+    const sheets=[],meta={updatedAt:j.updatedAt||null};
+    for(const k of Object.keys(j.sheets)){const v=j.sheets[k];const a=v&&v.h&&v.r?expandCompact(v):toAoa(v);if(a.length)sheets.push({name:k,aoa:a})}
+    sheets.forEach(s=>{if(isTargetSheet(s))s.aoa=cleanTargetAoa(s.aoa)});
+    if(meta.updatedAt!=null){const d=new Date(meta.updatedAt);meta.updatedAt=isNaN(d)?String(meta.updatedAt):fdt(d.getTime())}
+    return{sheets,meta};
+  }
   let root=j,meta={};
   for(let i=0;i<3;i++){
     if(root&&!Array.isArray(root)&&typeof root==='object'){
@@ -1014,7 +1043,7 @@ async function loadFromApi(opt){
     const {sheets,meta}=apiSheets(j);
     console.log('[API] sheets received:',sheets.map(s=>s.name+' ('+s.aoa.length+' rows)').join(', '));
     if(!sheets.length)throw new ApiErr('format','The service returned no sheets.');
-    const r=buildFromSheets(sheets);
+    const r=(j&&j.cube&&j.data)?buildFromCube(j):buildFromSheets(sheets);
     if(r.error)throw new ApiErr('format',r.error);
     if(r.targetsOnly)throw new ApiErr('format','Only a target sheet was received; the main data sheets are missing.');
     let tgWarn='';
